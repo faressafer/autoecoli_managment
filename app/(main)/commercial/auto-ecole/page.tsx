@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { useToast } from "@/hooks/useToast";
 import dynamic from "next/dynamic";
 import SidebarPermissionsManager from "@/components/admin/SidebarPermissionsManager";
 import { SidebarPermissions } from "@/lib/types";
@@ -85,6 +86,7 @@ interface AutoEcole {
 
 export default function AutoEcolePage() {
   const { isSuperAdmin } = useAuth();
+  const { success, error, warning, ToastContainer } = useToast();
   const [autoEcoles, setAutoEcoles] = useState<AutoEcole[]>([]);
   const [candidates, setCandidates] = useState<any[]>([]);
   const [instructors, setInstructors] = useState<any[]>([]);
@@ -236,9 +238,9 @@ export default function AutoEcolePage() {
       setShowStatusModal(false);
       setSelectedAutoEcole(null);
       await loadAutoEcoles();
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Erreur lors de la mise à jour du statut");
+    } catch (err) {
+      console.error("Error updating status:", err);
+      error("Erreur lors de la mise à jour du statut");
     } finally {
       setActionLoading(null);
     }
@@ -258,9 +260,9 @@ export default function AutoEcolePage() {
       setShowPackModal(false);
       setSelectedAutoEcole(null);
       await loadAutoEcoles();
-    } catch (error) {
-      console.error("Error updating pack:", error);
-      alert("Erreur lors de la mise à jour du pack");
+    } catch (err) {
+      console.error("Error updating pack:", err);
+      error("Erreur lors de la mise à jour du pack");
     } finally {
       setActionLoading(null);
     }
@@ -284,9 +286,9 @@ export default function AutoEcolePage() {
       });
       
       await loadAutoEcoles();
-    } catch (error) {
-      console.error("Error updating pack paid status:", error);
-      alert("Erreur lors de la mise à jour du statut de paiement");
+    } catch (err) {
+      console.error("Error updating pack paid status:", err);
+      error("Erreur lors de la mise à jour du statut de paiement");
     } finally {
       setActionLoading(null);
     }
@@ -308,10 +310,10 @@ export default function AutoEcolePage() {
       setShowPaymentModal(false);
       setSelectedAutoEcole(null);
       await loadAutoEcoles();
-      alert("✅ Paiement approuvé avec succès!");
-    } catch (error) {
-      console.error("Error approving payment:", error);
-      alert("Erreur lors de l'approbation du paiement");
+      success("Paiement approuvé avec succès!");
+    } catch (err) {
+      console.error("Error approving payment:", err);
+      error("Erreur lors de l'approbation du paiement");
     } finally {
       setActionLoading(null);
     }
@@ -334,10 +336,10 @@ export default function AutoEcolePage() {
       setSelectedAutoEcole(null);
       setRejectionReason("");
       await loadAutoEcoles();
-      alert("❌ Paiement rejeté");
-    } catch (error) {
-      console.error("Error rejecting payment:", error);
-      alert("Erreur lors du rejet du paiement");
+      warning("Paiement rejeté");
+    } catch (err) {
+      console.error("Error rejecting payment:", err);
+      error("Erreur lors du rejet du paiement");
     } finally {
       setActionLoading(null);
     }
@@ -354,9 +356,9 @@ export default function AutoEcolePage() {
       setActionLoading(autoEcoleId);
       await deleteDoc(doc(db, "autoecoles", autoEcoleId));
       await loadAutoEcoles();
-    } catch (error) {
-      console.error("Error deleting auto-école:", error);
-      alert("Erreur lors de la suppression");
+    } catch (err) {
+      console.error("Error deleting auto-école:", err);
+      error("Erreur lors de la suppression");
     } finally {
       setActionLoading(null);
     }
@@ -576,7 +578,7 @@ export default function AutoEcolePage() {
                 const schoolInstructors = instructors.filter(i => i.autoEcoleId === autoEcole.id);
 
                 return (
-                  <div key={autoEcole.id} className="bg-gradient-to-br from-gray-50 to-white p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all">
+                  <div key={autoEcole.id} className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900 mb-1">{autoEcole.name}</h3>
@@ -959,7 +961,7 @@ export default function AutoEcolePage() {
                       disabled={actionLoading === selectedAutoEcole.id}
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                   </label>
                 </div>
               </div>
@@ -1160,7 +1162,7 @@ export default function AutoEcolePage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-orange-500 text-white p-6">
+            <div className="bg-linear-to-r from-blue-500 to-orange-500 text-white p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   {selectedAutoEcole.logo ? (
@@ -1229,6 +1231,8 @@ export default function AutoEcolePage() {
                   currentPack={selectedAutoEcole.pack}
                   currentPermissions={selectedAutoEcole.sidebarPermissions}
                   onUpdate={loadAutoEcoles}
+                  onSuccess={() => success("Permissions mises à jour avec succès!")}
+                  onError={() => error("Erreur lors de la mise à jour des permissions")}
                 />
               ) : (
                 <div className="space-y-6">
@@ -1642,6 +1646,8 @@ export default function AutoEcolePage() {
           </div>
         </div>
       )}
+
+      <ToastContainer />
     </div>
   );
 }

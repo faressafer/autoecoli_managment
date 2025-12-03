@@ -12,6 +12,8 @@ interface SidebarPermissionsManagerProps {
   currentPack?: 'bronze' | 'silver' | 'gold' | null;
   currentPermissions?: SidebarPermissions;
   onUpdate: () => void;
+  onSuccess?: () => void;
+  onError?: () => void;
 }
 
 export default function SidebarPermissionsManager({
@@ -20,6 +22,8 @@ export default function SidebarPermissionsManager({
   currentPack,
   currentPermissions,
   onUpdate,
+  onSuccess,
+  onError,
 }: SidebarPermissionsManagerProps) {
   const [permissions, setPermissions] = useState<SidebarPermissions>(
     currentPermissions || getAutoEcolePermissions(currentPack)
@@ -39,10 +43,10 @@ export default function SidebarPermissionsManager({
     try {
       await updateAutoEcoleSidebarPermissions(autoEcoleId, permissions);
       onUpdate();
-      alert("Permissions mises à jour avec succès!");
-    } catch (error) {
-      console.error("Error saving permissions:", error);
-      alert("Erreur lors de la mise à jour des permissions");
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      console.error("Error saving permissions:", err);
+      if (onError) onError();
     } finally {
       setLoading(false);
     }

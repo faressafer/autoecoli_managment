@@ -6,6 +6,7 @@ import { Users, Car, DollarSign, Calendar, Plus, UserCog, FileText, CheckCircle2
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, query, where, doc, updateDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/useToast";
 import dynamic from "next/dynamic";
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
@@ -24,6 +25,7 @@ const TunisiaMap = dynamic(() => import("@/components/TunisiaMap"), {
 });
 
 export default function DashboardPage() {
+  const { error: showError, ToastContainer } = useToast();
   const [candidates, setCandidates] = useState<any[]>([]);
   const [instructors, setInstructors] = useState<any[]>([]);
   const [autoEcoles, setAutoEcoles] = useState<any[]>([]);
@@ -151,9 +153,9 @@ export default function DashboardPage() {
       setShowStatusModal(false);
       setSelectedAutoEcole(null);
       await loadData();
-    } catch (error) {
-      console.error("Error updating status:", error);
-      alert("Erreur lors de la mise à jour du statut");
+    } catch (err) {
+      console.error("Error updating status:", err);
+      showError("Erreur lors de la mise à jour du statut");
     } finally {
       setActionLoading(null);
     }
@@ -173,9 +175,9 @@ export default function DashboardPage() {
       setShowPackModal(false);
       setSelectedAutoEcole(null);
       await loadData();
-    } catch (error) {
-      console.error("Error updating pack:", error);
-      alert("Erreur lors de la mise à jour du pack");
+    } catch (err) {
+      console.error("Error updating pack:", err);
+      showError("Erreur lors de la mise à jour du pack");
     } finally {
       setActionLoading(null);
     }
@@ -306,7 +308,7 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Q1: Quel est votre objectif en vous inscrivant sur Autoécolie ? */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Quel est votre objectif en vous inscrivant sur Autoécolie ?
                 </h3>
@@ -361,7 +363,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q2: Avez-vous déjà conduit ? */}
-              <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-6">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Avez-vous déjà conduit ?
                 </h3>
@@ -415,7 +417,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q3: Une plateforme vous serait-elle utile pour faciliter votre permis ? */}
-              <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-6">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Une plateforme vous serait-elle utile pour faciliter votre permis ?
                 </h3>
@@ -470,7 +472,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q4: Quelle langue préférez-vous ? */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-6">
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Quelle langue préférez-vous ?
                 </h3>
@@ -545,7 +547,7 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Q1: Quel type de cours donnez-vous ? */}
-              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-6">
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Quel type de cours donnez-vous ?
                 </h3>
@@ -599,7 +601,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q2: Quel est votre objectif sur Autoécolie ? */}
-              <div className="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-lg p-6">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Quel est votre objectif sur Autoécolie ?
                 </h3>
@@ -653,7 +655,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q3: Qu'est-ce qui pourrait vous empêcher de vous inscrire ou de payer ? */}
-              <div className="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-lg p-6">
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Qu'est-ce qui pourrait vous empêcher de vous inscrire ou de payer ?
                 </h3>
@@ -707,7 +709,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Q4: Quelle langue préférez-vous ? */}
-              <div className="bg-gradient-to-br from-pink-50 to-pink-100 border border-pink-200 rounded-lg p-6">
+              <div className="bg-pink-50 border border-pink-200 rounded-lg p-6">
                 <h3 className="font-bold text-gray-900 mb-4 text-lg">
                   Quelle langue préférez-vous ?
                 </h3>
@@ -778,7 +780,7 @@ export default function DashboardPage() {
       {/* Super Admin: Users Table with Phone Numbers */}
       {isSuperAdmin && !loading && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6">
+          <div className="bg-linear-to-r from-blue-500 to-purple-500 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
@@ -1157,6 +1159,7 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <ToastContainer />
     </div>
   );
 }
