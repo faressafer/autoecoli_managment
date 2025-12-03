@@ -28,7 +28,14 @@ export interface AutoEcole {
   email: string;
   website?: string;
   logo?: string;
-  pack?: 'bronze' | 'silver' | 'gold';
+  pack?: 'bronze' | 'silver' | 'gold' | null;
+  packPaid?: boolean;
+  paymentMethod?: 'D17' | 'Sur place';
+  paymentRequestDate?: any;
+  paymentStatus?: 'pending' | 'approved' | 'rejected';
+  paymentApprovedDate?: any;
+  rejectionReason?: string;
+  rejectionDate?: any;
   status?: 'active' | 'inactive' | 'pending';
   sidebarPermissions?: SidebarPermissions;
   createdAt: Date;

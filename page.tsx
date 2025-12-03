@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { Crown, Star, Users, Check, X, Clock, Sparkles, Zap, Shield, TrendingUp, CreditCard, MapPin } from "lucide-react";
 import { db } from "@/lib/firebase/config";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 export default function BillingSubscriptionsPage() {
   const { autoEcole } = useAuth();
-  const { t } = useLanguage();
   const [timeLeft, setTimeLeft] = useState({
     days: 0,
     hours: 0,
