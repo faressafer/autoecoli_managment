@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/useToast";
 import dynamic from "next/dynamic";
 import SidebarPermissionsManager from "@/components/admin/SidebarPermissionsManager";
 import { SidebarPermissions } from "@/lib/types";
+
 import { 
   Building2, 
   Users, 
