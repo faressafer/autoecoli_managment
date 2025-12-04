@@ -91,6 +91,10 @@ export default function CandidatesManagementPage() {
 
   const loadData = async () => {
     try {
+      if (!db) {
+        console.error("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       setLoading(true);
 
       // Load all auto-écoles
@@ -137,6 +141,10 @@ export default function CandidatesManagementPage() {
 
     setActionLoading("adding");
     try {
+      if (!db) {
+        showError("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       const candidatsRef = collection(db, "autoecoles", formData.autoEcoleId, "candidat");
       await addDoc(candidatsRef, {
         ...formData,
@@ -163,6 +171,10 @@ export default function CandidatesManagementPage() {
 
     setActionLoading("updating");
     try {
+      if (!db) {
+        showError("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       const candidateRef = doc(db, "autoecoles", selectedCandidate.autoEcoleId, "candidat", selectedCandidate.id);
       await updateDoc(candidateRef, {
         ...formData,
@@ -189,6 +201,10 @@ export default function CandidatesManagementPage() {
 
     setActionLoading(candidate.id);
     try {
+      if (!db) {
+        showError("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       await deleteDoc(doc(db, "autoecoles", candidate.autoEcoleId, "candidat", candidate.id));
       success("Candidat supprimé avec succès!");
       await loadData();

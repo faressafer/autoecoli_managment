@@ -4,6 +4,9 @@ import { Offer } from "@/lib/types";
 
 // Create a new offer
 export async function createOffer(autoEcoleId: string, offer: Omit<Offer, "id" | "createdAt" | "updatedAt">): Promise<string> {
+  if (!db) {
+    throw new Error("Firebase Firestore n'est pas initialisé");
+  }
   const offersRef = collection(db, "autoecoles", autoEcoleId, "offers");
   const offerData = {
     ...offer,

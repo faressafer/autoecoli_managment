@@ -62,6 +62,11 @@ export default function LoginPage() {
       }
 
       // Regular user login with Firebase Auth
+      if (!auth) {
+        setError("Firebase n'est pas initialisé. Veuillez réessayer.");
+        setLoading(false);
+        return;
+      }
       await signInWithEmailAndPassword(auth, email, password);
       // Clear super admin flag if it exists
       localStorage.removeItem("superAdmin");
@@ -84,6 +89,11 @@ export default function LoginPage() {
     setError("");
 
     try {
+      if (!auth) {
+        setError("Firebase n'est pas initialisé. Veuillez réessayer.");
+        setLoading(false);
+        return;
+      }
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;

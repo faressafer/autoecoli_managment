@@ -18,6 +18,9 @@ export async function createAutoEcole(
   permisTypes?: string[]
   ): Promise<string> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const autoEcoleRef = doc(db, "autoecoles", ownerId);
     
     await setDoc(autoEcoleRef, {
@@ -66,6 +69,9 @@ export async function createUserProfile(
   autoEcoleId?: string
 ): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     await setDoc(doc(db, "users", uid), {
       uid,
       email,
@@ -86,6 +92,10 @@ export async function createUserProfile(
  */
 export async function getUserProfile(uid: string, retryCount = 0): Promise<UserProfile | null> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return null;
+    }
     const userDoc = await getDoc(doc(db, "users", uid));
     
     if (userDoc.exists()) {
@@ -119,6 +129,9 @@ export async function getUserProfile(uid: string, retryCount = 0): Promise<UserP
  */
 export async function setUserProfile(uid: string, profile: Partial<UserProfile>): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const userRef = doc(db, "users", uid);
     const now = new Date();
     
@@ -139,6 +152,9 @@ export async function setUserProfile(uid: string, profile: Partial<UserProfile>)
  */
 export async function updateUserProfile(uid: string, updates: Partial<UserProfile>): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const userRef = doc(db, "users", uid);
     await updateDoc(userRef, {
       ...updates,
@@ -155,6 +171,10 @@ export async function updateUserProfile(uid: string, updates: Partial<UserProfil
  */
 export async function getAutoEcole(autoEcoleId: string): Promise<AutoEcole | null> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return null;
+    }
     const autoEcoleDoc = await getDoc(doc(db, "autoecoles", autoEcoleId));
     
     if (autoEcoleDoc.exists()) {
@@ -179,6 +199,10 @@ export async function getAutoEcole(autoEcoleId: string): Promise<AutoEcole | nul
  */
 export async function getAllAutoEcoles(): Promise<AutoEcole[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const querySnapshot = await getDocs(collection(db, "autoecoles"));
     return querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -197,6 +221,10 @@ export async function getAllAutoEcoles(): Promise<AutoEcole[]> {
  */
 export async function getUsersByAutoEcole(autoEcoleId: string): Promise<UserProfile[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const q = query(
       collection(db, "users"),
       where("autoEcoleId", "==", autoEcoleId)
@@ -223,6 +251,9 @@ export async function updateAutoEcoleSidebarPermissions(
   permissions: any
 ): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const autoEcoleRef = doc(db, "autoecoles", autoEcoleId);
     await updateDoc(autoEcoleRef, {
       sidebarPermissions: permissions,

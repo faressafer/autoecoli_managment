@@ -130,6 +130,10 @@ export default function AutoEcolePage() {
 
   const loadAutoEcoles = async () => {
     try {
+      if (!db) {
+        console.error("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       setLoading(true);
       const autoEcolesRef = collection(db, "autoecoles");
       const snapshot = await getDocs(autoEcolesRef);
@@ -202,6 +206,10 @@ export default function AutoEcolePage() {
 
   const loadAutoEcoleDetails = async (autoEcoleId: string) => {
     try {
+      if (!db) {
+        console.error("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       setDetailsLoading(true);
       
       // Load candidates
@@ -260,6 +268,10 @@ export default function AutoEcolePage() {
 
   const updateStatus = async (status: string) => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -282,6 +294,10 @@ export default function AutoEcolePage() {
 
   const updatePack = async (pack: PackType) => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -316,6 +332,10 @@ export default function AutoEcolePage() {
 
   const updatePackPaid = async (paid: boolean) => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -342,6 +362,10 @@ export default function AutoEcolePage() {
 
   const approvePayment = async () => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -367,6 +391,10 @@ export default function AutoEcolePage() {
 
   const rejectPayment = async () => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -393,6 +421,10 @@ export default function AutoEcolePage() {
 
   const deleteAutoEcole = async (autoEcoleId: string) => {
     if (!isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette auto-école ? Cette action est irréversible.")) {
       return;
@@ -412,6 +444,10 @@ export default function AutoEcolePage() {
 
   const updatePaymentAmount = async () => {
     if (!editingPaymentAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(editingPaymentAutoEcole.id);

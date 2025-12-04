@@ -96,6 +96,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkSuperAdmin();
 
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       await checkSuperAdmin();
@@ -132,7 +137,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("adminUsername");
       
       // Sign out from Firebase
-      await firebaseSignOut(auth);
+      if (auth) {
+        await firebaseSignOut(auth);
+      }
       
       // Force redirect to login
       window.location.href = "/login";

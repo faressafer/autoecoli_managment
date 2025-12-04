@@ -47,6 +47,11 @@ export default function BillingSubscriptionsPage() {
     
     setIsSubmitting(true);
     try {
+      if (!db) {
+        alert("Firebase n'est pas initialisé. Veuillez réessayer.");
+        setIsSubmitting(false);
+        return;
+      }
       await updateDoc(doc(db, "autoecoles", autoEcole.id), {
         paymentMethod: paymentMethod,
         paymentRequestDate: serverTimestamp(),

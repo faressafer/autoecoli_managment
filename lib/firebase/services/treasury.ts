@@ -43,6 +43,9 @@ export interface TreasurySummary {
  */
 export async function getTreasuryDocument(): Promise<any> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const treasuryRef = doc(db, "Admin", "tresorie");
     const treasurySnap = await getDoc(treasuryRef);
 
@@ -64,6 +67,9 @@ export async function getTreasuryDocument(): Promise<any> {
  */
 export async function initializeTreasuryDocument(): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const treasuryRef = doc(db, "Admin", "tresorie");
     await setDoc(treasuryRef, {
       totalEntrees: 0,
@@ -84,6 +90,10 @@ export async function initializeTreasuryDocument(): Promise<void> {
  */
 export async function getTreasuryTransactions(): Promise<TreasuryTransaction[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
     const q = query(transactionsRef, orderBy("date", "desc"));
     const querySnapshot = await getDocs(q);
@@ -106,6 +116,10 @@ export async function getTreasuryTransactions(): Promise<TreasuryTransaction[]> 
  */
 export async function getTreasuryTransactionsByType(type: "entree" | "sortie"): Promise<TreasuryTransaction[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
     const q = query(
       transactionsRef, 
@@ -132,6 +146,10 @@ export async function getTreasuryTransactionsByType(type: "entree" | "sortie"): 
  */
 export async function getTreasuryTransactionsByCategory(categorie: string): Promise<TreasuryTransaction[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
     const q = query(
       transactionsRef, 
@@ -160,6 +178,9 @@ export async function addTreasuryTransaction(
   transaction: Omit<TreasuryTransaction, "id" | "createdAt" | "updatedAt">
 ): Promise<string> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
     
     // Add transaction
@@ -188,6 +209,9 @@ export async function updateTreasuryTransaction(
   updates: Partial<TreasuryTransaction>
 ): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const transactionRef = doc(db, "Admin", "tresorie", "transactions", transactionId);
     
     const updateData: any = {
@@ -215,6 +239,9 @@ export async function updateTreasuryTransaction(
  */
 export async function deleteTreasuryTransaction(transactionId: string): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const transactionRef = doc(db, "Admin", "tresorie", "transactions", transactionId);
     await deleteDoc(transactionRef);
 
@@ -231,6 +258,9 @@ export async function deleteTreasuryTransaction(transactionId: string): Promise<
  */
 export async function updateTreasurySummary(): Promise<void> {
   try {
+    if (!db) {
+      throw new Error("Firebase Firestore n'est pas initialisé");
+    }
     const transactions = await getTreasuryTransactions();
     
     let totalEntrees = 0;
@@ -304,6 +334,10 @@ export async function getTreasuryTransactionsByDateRange(
   endDate: Date
 ): Promise<TreasuryTransaction[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
     const q = query(
       transactionsRef,

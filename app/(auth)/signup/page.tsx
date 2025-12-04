@@ -110,6 +110,11 @@ export default function SignUpPage() {
 
     try {
       // Create user in Firebase Authentication
+      if (!auth) {
+        setError("Firebase n'est pas initialisé. Veuillez réessayer.");
+        setLoading(false);
+        return;
+      }
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
@@ -122,6 +127,11 @@ export default function SignUpPage() {
 
       let logoUrl = "";
       if (logoFile) {
+        if (!storage) {
+          setError("Firebase Storage n'est pas initialisé. Veuillez réessayer.");
+          setLoading(false);
+          return;
+        }
         const storageRef = ref(storage, `Driving school images/${user.uid}`);
         await uploadBytes(storageRef, logoFile);
         logoUrl = await getDownloadURL(storageRef);
@@ -156,6 +166,11 @@ export default function SignUpPage() {
     setError("");
 
     try {
+      if (!auth) {
+        setError("Firebase n'est pas initialisé. Veuillez réessayer.");
+        setLoading(false);
+        return;
+      }
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
@@ -194,6 +209,11 @@ export default function SignUpPage() {
       if (formData.schoolName && formData.siret) {
         let logoUrl = "";
         if (logoFile) {
+          if (!storage) {
+            setError("Firebase Storage n'est pas initialisé. Veuillez réessayer.");
+            setLoading(false);
+            return;
+          }
           const storageRef = ref(storage, `Driving school images/${user.uid}`);
           await uploadBytes(storageRef, logoFile);
           logoUrl = await getDownloadURL(storageRef);

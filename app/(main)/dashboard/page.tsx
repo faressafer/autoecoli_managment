@@ -45,6 +45,10 @@ export default function DashboardPage() {
 
   const loadData = async () => {
     try {
+      if (!db) {
+        console.error("Firebase Firestore n'est pas initialisé");
+        return;
+      }
       // Super Admin: Load all auto-écoles
       if (isSuperAdmin) {
         const autoEcolesRef = collection(db, "autoecoles");
@@ -141,6 +145,10 @@ export default function DashboardPage() {
 
   const updateStatus = async (status: string) => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);
@@ -163,6 +171,10 @@ export default function DashboardPage() {
 
   const updatePack = async (pack: string | null) => {
     if (!selectedAutoEcole || !isSuperAdmin) return;
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     
     try {
       setActionLoading(selectedAutoEcole.id);

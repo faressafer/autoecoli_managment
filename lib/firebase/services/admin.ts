@@ -16,6 +16,10 @@ export interface AdminProfile {
  */
 export async function getAdminProfile(username: string): Promise<AdminProfile | null> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return null;
+    }
     const adminRef = doc(db, "Admin", username);
     const adminSnap = await getDoc(adminRef);
 
@@ -35,6 +39,10 @@ export async function getAdminProfile(username: string): Promise<AdminProfile | 
  */
 export async function verifyAdminCredentials(username: string, password: string): Promise<boolean> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return false;
+    }
     const adminRef = doc(db, "Admin", username);
     const adminSnap = await getDoc(adminRef);
 
@@ -55,6 +63,10 @@ export async function verifyAdminCredentials(username: string, password: string)
  */
 export async function updateAdminLogin(username: string): Promise<void> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     const adminRef = doc(db, "Admin", username);
     const adminSnap = await getDoc(adminRef);
 
@@ -85,6 +97,10 @@ export async function updateAdminLogin(username: string): Promise<void> {
  */
 export async function getAllAdmins(): Promise<AdminProfile[]> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return [];
+    }
     const adminsRef = collection(db, "Admin");
     const adminsSnap = await getDocs(adminsRef);
 
@@ -103,6 +119,10 @@ export async function getAllAdmins(): Promise<AdminProfile[]> {
  */
 export async function initializeDefaultAdmin(): Promise<void> {
   try {
+    if (!db) {
+      console.error("Firebase Firestore n'est pas initialisé");
+      return;
+    }
     const adminRef = doc(db, "Admin", "admin");
     const adminSnap = await getDoc(adminRef);
 

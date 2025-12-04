@@ -4,6 +4,9 @@ import { Invoice, Payment, Offer } from "@/lib/types";
 
 // Create a new invoice for a candidate
 export async function createInvoice(autoEcoleId: string, candidateId: string, offer: Offer): Promise<string> {
+  if (!db) {
+    throw new Error("Firebase Firestore n'est pas initialisé");
+  }
   const invoiceRef = collection(db, "autoecoles", autoEcoleId, "invoices");
   const invoiceData = {
     candidateId,
@@ -23,6 +26,9 @@ export async function createInvoice(autoEcoleId: string, candidateId: string, of
 
 // Add a payment to an invoice
 export async function addPayment(autoEcoleId: string, invoiceId: string, payment: Omit<Payment, "id">): Promise<void> {
+  if (!db) {
+    throw new Error("Firebase Firestore n'est pas initialisé");
+  }
   const invoiceDoc = doc(db, "autoecoles", autoEcoleId, "invoices", invoiceId);
   const invoiceSnap = await getDoc(invoiceDoc);
   if (!invoiceSnap.exists()) throw new Error("Invoice not found");
