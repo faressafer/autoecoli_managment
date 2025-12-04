@@ -18,6 +18,7 @@ import {
     Star,
     ChevronRight,
     Archive,
+    Bell,
 } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import {useAuth} from "@/contexts/AuthContext";
@@ -44,6 +45,7 @@ export default function MainLayout({
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
     const toggleSubmenu = (name: string) => {
@@ -88,6 +90,33 @@ export default function MainLayout({
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, [isUserMenuOpen]);
+
+    // Subscribe to real-time unread notifications count
+    useEffect(() => {
+        // Dynamically import to avoid SSR issues
+        const loadNotificationListener = async () => {
+            const { subscribeToUnreadCount } = await import("@/lib/firebase/services/notifications");
+            
+            const unsubscribe = subscribeToUnreadCount(
+                (count) => setUnreadCount(count),
+                isSuperAdmin ? undefined : autoEcole?.id
+            );
+
+            return unsubscribe;
+        };
+
+        let unsubscribePromise: Promise<() => void>;
+        
+        if (autoEcole?.id || isSuperAdmin) {
+            unsubscribePromise = loadNotificationListener();
+        }
+
+        return () => {
+            if (unsubscribePromise) {
+                unsubscribePromise.then((unsubscribe) => unsubscribe());
+            }
+        };
+    }, [isSuperAdmin, autoEcole?.id]);
 
     const navigation = [
         {
@@ -181,6 +210,11 @@ export default function MainLayout({
             href: "/total-cout-a-payer",
             icon: Receipt,
         },
+        {
+            name: "Notifications",
+            href: "/notifications",
+            icon: Bell,
+        },
     ];
 
     const isActive = (href: string) => {
@@ -211,7 +245,6 @@ export default function MainLayout({
                             />
                         </Link>
                         <div className="flex items-center gap-2">
-
                             <button
                                 onClick={toggleMobileMenu}
                                 className="p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
@@ -363,10 +396,22 @@ export default function MainLayout({
                                                         : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
                                                     }`}
                                                 >
-                                                    <Icon
-                                                        className={`w-5 h-5 ${active ? "text-[#1E3A8A]" : "text-gray-500"}`}
-                                                    />
+                                                    <div className="relative">
+                                                        <Icon
+                                                            className={`w-5 h-5 ${active ? "text-[#1E3A8A]" : "text-gray-500"}`}
+                                                        />
+                                                        {item.name === "Notifications" && unreadCount > 0 && (
+                                                            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-xs font-bold rounded-full">
+                                                                {unreadCount > 9 ? '9+' : unreadCount}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <span>{item.name}</span>
+                                                    {item.name === "Notifications" && unreadCount > 0 && (
+                                                        <span className="ml-auto flex items-center justify-center min-w-[20px] h-[20px] px-1.5 bg-red-500 text-white text-xs font-bold rounded-full">
+                                                            {unreadCount}
+                                                        </span>
+                                                    )}
                                                 </Link>
                                             )}
                                         </div>
@@ -460,15 +505,6 @@ export default function MainLayout({
                     />
                   </div>
                 </div> */}
-
-                                {/* Notifications - Commented out */}
-                                {/* <button
-                  className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Notifications"
-                >
-                  <Bell className="w-5 h-5" />
-                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
-                </button> */}
 
                                 {/* Settings - Removed */}
 

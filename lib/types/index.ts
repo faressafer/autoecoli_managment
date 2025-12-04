@@ -103,3 +103,19 @@ export interface Invoice {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Notification {
+  id: string;
+  autoEcoleId: string;
+  autoEcoleName: string;
+  type: 'info' | 'warning' | 'success' | 'error' | 'payment' | 'pack' | 'general';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: any;
+  metadata?: {
+    packType?: string;
+    amount?: number;
+    [key: string]: any;
+  };
+}
