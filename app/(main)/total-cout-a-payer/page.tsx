@@ -8,7 +8,7 @@ export default function TotalCoutAPayerPage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Total Cout a payer</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Cout a payer</h1>
         <p className="text-gray-600 mt-1">
           Vue globale du total des coûts à payer
         </p>

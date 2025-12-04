@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, doc, updateDoc, deleteDoc, Timestamp } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, deleteDoc, Timestamp, query, where, addDoc, getDoc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/useToast";
 import dynamic from "next/dynamic";
 import SidebarPermissionsManager from "@/components/admin/SidebarPermissionsManager";
 import { SidebarPermissions } from "@/lib/types";
+import { getTreasuryTransactions } from "@/lib/firebase/services/treasury";
 
 import { 
   Building2, 
@@ -41,7 +42,8 @@ import {
   Clock,
   User,
   X,
-  Settings
+  Settings,
+  Save
 } from "lucide-react";
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
@@ -83,10 +85,13 @@ interface AutoEcole {
   registrationNumber?: string;
   managerName?: string;
   sidebarPermissions?: SidebarPermissions;
+  totalPaid?: number;
+  paymentHistory?: any[];
+  expectedAmount?: number;
 }
 
 export default function AutoEcolePage() {
-  const { isSuperAdmin } = useAuth();
+  const { isSuperAdmin, user } = useAuth();
   const { success, error, warning, ToastContainer } = useToast();
   const [autoEcoles, setAutoEcoles] = useState<AutoEcole[]>([]);
   const [candidates, setCandidates] = useState<any[]>([]);
@@ -103,7 +108,7 @@ export default function AutoEcolePage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("table");
   const [showMap, setShowMap] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [autoEcoleDetails, setAutoEcoleDetails] = useState<any>({
@@ -113,7 +118,11 @@ export default function AutoEcolePage() {
     offers: [],
     appointments: []
   });
-  const [activeTab, setActiveTab] = useState<"details" | "permissions">("details");
+  const [activeTab, setActiveTab] = useState<"details" | "permissions" | "payments">("details");
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [editingPaymentAutoEcole, setEditingPaymentAutoEcole] = useState<AutoEcole | null>(null);
+  const [newTotalPaid, setNewTotalPaid] = useState<number>(0);
+  const [newExpectedAmount, setNewExpectedAmount] = useState<number>(0);
 
   useEffect(() => {
     loadAutoEcoles();
@@ -128,13 +137,37 @@ export default function AutoEcolePage() {
         id: doc.id,
         ...doc.data()
       })) as AutoEcole[];
-      setAutoEcoles(autoEcolesData);
+
+      // Load treasury payments for each auto-école
+      const treasuryTransactions = await getTreasuryTransactions();
+      
+      const autoEcolesWithPayments = autoEcolesData.map(autoEcole => {
+        const payments = treasuryTransactions.filter(t => 
+          t.description.includes(autoEcole.name) || 
+          t.reference.includes(autoEcole.id) ||
+          t.description.toLowerCase().includes(autoEcole.name.toLowerCase())
+        );
+        
+        // Use manually set totalPaid if exists, otherwise calculate from treasury
+        const manualTotalPaid = autoEcole.totalPaid;
+        const calculatedTotalPaid = payments
+          .filter(p => p.statut === "valide" && p.type === "entree")
+          .reduce((sum, p) => sum + p.montant, 0);
+        
+        return {
+          ...autoEcole,
+          totalPaid: manualTotalPaid !== undefined ? manualTotalPaid : calculatedTotalPaid,
+          paymentHistory: payments
+        };
+      });
+
+      setAutoEcoles(autoEcolesWithPayments);
 
       // Load all candidates and instructors from all auto-écoles
       let allCandidates: any[] = [];
       let allInstructors: any[] = [];
 
-      for (const autoEcole of autoEcolesData) {
+      for (const autoEcole of autoEcolesWithPayments) {
         const candidatsRef = collection(db, "autoecoles", autoEcole.id, "candidat");
         const candidatesSnapshot = await getDocs(candidatsRef);
         candidatesSnapshot.docs.forEach(doc => {
@@ -253,14 +286,26 @@ export default function AutoEcolePage() {
     try {
       setActionLoading(selectedAutoEcole.id);
       const autoEcoleRef = doc(db, "autoecoles", selectedAutoEcole.id);
+      
+      // Set expected amount based on pack
+      const packPrices: { [key: string]: number } = {
+        bronze: 90,
+        silver: 120,
+        gold: 190
+      };
+      
+      const expectedAmount = pack ? packPrices[pack] : 0;
+      
       await updateDoc(autoEcoleRef, {
         pack: pack,
+        expectedAmount: expectedAmount,
         updatedAt: Timestamp.now()
       });
       
       setShowPackModal(false);
       setSelectedAutoEcole(null);
       await loadAutoEcoles();
+      success(`Pack ${pack ? pack.toUpperCase() : 'supprimé'} - Montant attendu: ${expectedAmount} DT`);
     } catch (err) {
       console.error("Error updating pack:", err);
       error("Erreur lors de la mise à jour du pack");
@@ -365,6 +410,100 @@ export default function AutoEcolePage() {
     }
   };
 
+  const updatePaymentAmount = async () => {
+    if (!editingPaymentAutoEcole || !isSuperAdmin) return;
+    
+    try {
+      setActionLoading(editingPaymentAutoEcole.id);
+      
+      // Calculate the payment difference
+      const oldTotalPaid = editingPaymentAutoEcole.totalPaid || 0;
+      const paymentDifference = newTotalPaid - oldTotalPaid;
+      
+      // Update auto-école payment info
+      const autoEcoleRef = doc(db, "autoecoles", editingPaymentAutoEcole.id);
+      await updateDoc(autoEcoleRef, {
+        totalPaid: newTotalPaid,
+        expectedAmount: newExpectedAmount,
+        updatedAt: Timestamp.now()
+      });
+      
+      // Add transaction to caisse if there's a payment change
+      if (paymentDifference !== 0) {
+        const transactionsRef = collection(db, "Admin", "tresorie", "transactions");
+        const transactionData = {
+          type: paymentDifference > 0 ? "entree" : "sortie",
+          montant: Math.abs(paymentDifference),
+          description: `${paymentDifference > 0 ? "Paiement" : "Remboursement"} pack - ${editingPaymentAutoEcole.name}`,
+          categorie: "Paiement Pack",
+          methodePayement: "Virement",
+          reference: `PACK-${editingPaymentAutoEcole.id}-${Date.now()}`,
+          date: Timestamp.now(),
+          creePar: user?.email || "Admin",
+          statut: "valide",
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+        
+        await addDoc(transactionsRef, transactionData);
+        
+        // Update treasury summary using setDoc with merge to avoid "no document" error
+        const treasuryRef = doc(db, "Admin", "tresorie");
+        const treasurySnap = await getDoc(treasuryRef);
+        
+        if (treasurySnap.exists()) {
+          const currentData = treasurySnap.data();
+          const currentEntrees = currentData.totalEntrees || 0;
+          const currentSorties = currentData.totalSorties || 0;
+          const currentTransactions = currentData.nombreTransactions || 0;
+          
+          const newEntrees = paymentDifference > 0 ? currentEntrees + Math.abs(paymentDifference) : currentEntrees;
+          const newSorties = paymentDifference < 0 ? currentSorties + Math.abs(paymentDifference) : currentSorties;
+          
+          await setDoc(treasuryRef, {
+            totalEntrees: newEntrees,
+            totalSorties: newSorties,
+            solde: newEntrees - newSorties,
+            nombreTransactions: currentTransactions + 1,
+            updatedAt: Timestamp.now()
+          }, { merge: true });
+        } else {
+          // Initialize the treasury document if it doesn't exist
+          const newEntrees = paymentDifference > 0 ? Math.abs(paymentDifference) : 0;
+          const newSorties = paymentDifference < 0 ? Math.abs(paymentDifference) : 0;
+          
+          await setDoc(treasuryRef, {
+            totalEntrees: newEntrees,
+            totalSorties: newSorties,
+            solde: newEntrees - newSorties,
+            nombreTransactions: 1,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+      
+      setShowEditPaymentModal(false);
+      setEditingPaymentAutoEcole(null);
+      await loadAutoEcoles();
+      success(paymentDifference !== 0 
+        ? `Paiement mis à jour et enregistré dans la caisse (${paymentDifference > 0 ? '+' : ''}${paymentDifference.toFixed(2)} TND)` 
+        : "Montant attendu mis à jour avec succès!");
+    } catch (err) {
+      console.error("Error updating payment amount:", err);
+      error("Erreur lors de la mise à jour du montant");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const openEditPaymentModal = (autoEcole: AutoEcole) => {
+    setEditingPaymentAutoEcole(autoEcole);
+    setNewTotalPaid(autoEcole.totalPaid || 0);
+    setNewExpectedAmount(autoEcole.expectedAmount || 0);
+    setShowEditPaymentModal(true);
+  };
+
   const filteredAutoEcoles = autoEcoles.filter(ae => {
     const matchesSearch = ae.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          ae.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -440,6 +579,7 @@ export default function AutoEcolePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
           <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1">
             <button
               onClick={() => setViewMode("cards")}
@@ -455,14 +595,23 @@ export default function AutoEcolePage() {
             >
               <List className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setShowMap(!showMap)}
-              className={`p-2 rounded ${showMap ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-              title="Carte de Tunisie"
-            >
-              <Map className="w-4 h-4" />
-            </button>
           </div>
+          
+          {/* Map Toggle */}
+          <button
+            onClick={() => setShowMap(!showMap)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${
+              showMap 
+                ? "bg-blue-100 text-blue-600 border-blue-200" 
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+            title="Afficher/Masquer la carte"
+          >
+            <Map className="w-4 h-4" />
+            {showMap ? "Masquer la carte" : "Afficher la carte"}
+          </button>
+          
+          {/* Refresh Button */}
           <button
             onClick={loadAutoEcoles}
             disabled={loading}
@@ -686,7 +835,7 @@ export default function AutoEcolePage() {
                   Pack
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payé
+                  Total Payé
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Statut
@@ -699,7 +848,7 @@ export default function AutoEcolePage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={8} className="px-6 py-12 text-center">
                     <div className="flex items-center justify-center">
                       <RefreshCw className="w-6 h-6 text-blue-500 animate-spin" />
                       <span className="ml-2 text-gray-500">Chargement...</span>
@@ -708,7 +857,7 @@ export default function AutoEcolePage() {
                 </tr>
               ) : filteredAutoEcoles.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                     Aucune auto-école trouvée
                   </td>
                 </tr>
@@ -764,42 +913,44 @@ export default function AutoEcolePage() {
                       </button>
                     </td>
                     
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {autoEcole.pack ? (
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                            autoEcole.packPaid 
-                              ? "bg-green-100 text-green-800 border border-green-200" 
-                              : "bg-red-100 text-red-800 border border-red-200"
-                          }`}>
-                            {autoEcole.packPaid ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3" />
-                                PAYÉ
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="w-3 h-3" />
-                                NON PAYÉ
-                              </>
-                            )}
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-black text-sm">
+                              {autoEcole.totalPaid || 0} / {autoEcole.expectedAmount || 0} DT
+                            </span>
+                          </div>
+                          <span className={
+                            `text-xs font-medium mt-1 ${
+                              !autoEcole.expectedAmount || autoEcole.expectedAmount === 0
+                                ? "text-gray-500"
+                                : !autoEcole.totalPaid || autoEcole.totalPaid === 0
+                                ? "text-red-600"
+                                : autoEcole.totalPaid >= autoEcole.expectedAmount
+                                ? "text-green-600"
+                                : "text-orange-600"
+                            }`
+                          }>
+                            {
+                              !autoEcole.expectedAmount || autoEcole.expectedAmount === 0
+                                ? "Non configuré"
+                                : !autoEcole.totalPaid || autoEcole.totalPaid === 0
+                                ? "Non payé"
+                                : autoEcole.totalPaid >= autoEcole.expectedAmount
+                                ? "Payé"
+                                : "Payé partiellement"
+                            }
                           </span>
-                          {autoEcole.paymentStatus === "pending" && (
-                            <button
-                              onClick={() => {
-                                setSelectedAutoEcole(autoEcole);
-                                setShowPaymentModal(true);
-                              }}
-                              className="p-1 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded transition-colors"
-                              title="Demande de paiement en attente"
-                            >
-                              <AlertCircle className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                         </div>
-                      ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                      )}
+                        <button
+                          onClick={() => openEditPaymentModal(autoEcole)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Modifier le montant"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                     
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -994,7 +1145,7 @@ export default function AutoEcolePage() {
                 <div className="flex items-center gap-3">
                   <Crown className="w-6 h-6 text-yellow-500" />
                   <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Gold</p>
+                    <p className="font-semibold text-gray-900">Pack Gold - 190 DT</p>
                     <p className="text-xs text-gray-500">Premium - Toutes les fonctionnalités</p>
                   </div>
                 </div>
@@ -1011,7 +1162,7 @@ export default function AutoEcolePage() {
                 <div className="flex items-center gap-3">
                   <Star className="w-6 h-6 text-gray-400" />
                   <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Silver</p>
+                    <p className="font-semibold text-gray-900">Pack Silver - 120 DT</p>
                     <p className="text-xs text-gray-500">Avancé - Fonctionnalités principales</p>
                   </div>
                 </div>
@@ -1028,7 +1179,7 @@ export default function AutoEcolePage() {
                 <div className="flex items-center gap-3">
                   <Circle className="w-6 h-6 text-orange-600" />
                   <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Bronze</p>
+                    <p className="font-semibold text-gray-900">Pack Bronze - 90 DT</p>
                     <p className="text-xs text-gray-500">Essentiel - Fonctionnalités de base</p>
                   </div>
                 </div>
@@ -1142,6 +1293,46 @@ export default function AutoEcolePage() {
                     {selectedAutoEcole.createdAt ? new Date(selectedAutoEcole.createdAt.toDate()).toLocaleDateString('fr-FR') : "N/A"}
                   </p>
                 </div>
+                <div className="col-span-2 bg-green-50 rounded-lg p-4 border border-green-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="text-xs text-green-600 font-medium">PAIEMENT À AUTOECOLI</p>
+                        <p className="text-2xl font-bold text-green-900">
+                          {selectedAutoEcole.totalPaid || 0} / {selectedAutoEcole.expectedAmount || 0} DT
+                        </p>
+                        <p className={
+                          `text-xs mt-1 font-medium ${
+                            !selectedAutoEcole.expectedAmount || selectedAutoEcole.expectedAmount === 0
+                              ? "text-gray-600"
+                              : !selectedAutoEcole.totalPaid || selectedAutoEcole.totalPaid === 0
+                              ? "text-red-600"
+                              : selectedAutoEcole.totalPaid >= selectedAutoEcole.expectedAmount
+                              ? "text-green-600"
+                              : "text-orange-600"
+                          }`
+                        }>
+                          {
+                            !selectedAutoEcole.expectedAmount || selectedAutoEcole.expectedAmount === 0
+                              ? "Non configuré"
+                              : !selectedAutoEcole.totalPaid || selectedAutoEcole.totalPaid === 0
+                              ? "Non payé"
+                              : selectedAutoEcole.totalPaid >= selectedAutoEcole.expectedAmount
+                              ? "Payé"
+                              : "Payé partiellement"
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => openEditPaymentModal(selectedAutoEcole)}
+                      className="p-3 bg-green-100 hover:bg-green-200 rounded-lg transition-colors"
+                      title="Modifier le montant"
+                    >
+                      <Edit className="w-6 h-6 text-green-600" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
             
@@ -1213,6 +1404,16 @@ export default function AutoEcolePage() {
                 >
                   ⚙️ Gestion du Sidebar
                 </button>
+                <button
+                  onClick={() => setActiveTab("payments")}
+                  className={`px-4 py-3 font-medium transition-colors border-b-2 ${
+                    activeTab === "payments"
+                      ? "border-blue-500 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  💰 Historique des Paiements
+                </button>
               </div>
             </div>
 
@@ -1235,6 +1436,111 @@ export default function AutoEcolePage() {
                   onSuccess={() => success("Permissions mises à jour avec succès!")}
                   onError={() => error("Erreur lors de la mise à jour des permissions")}
                 />
+              ) : activeTab === "payments" ? (
+                <div className="space-y-6">
+                  {/* Payment Summary */}
+                  <div className="bg-linear-to-r from-green-500 to-emerald-600 text-white rounded-xl p-6 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-white/90 text-sm font-medium mb-2">PAIEMENT À AUTOECOLI</p>
+                        <p className="text-4xl font-bold">
+                          {selectedAutoEcole.totalPaid || 0} / {selectedAutoEcole.expectedAmount || 0} DT
+                        </p>
+                        <p className="text-white/80 text-sm mt-2">
+                          {
+                            !selectedAutoEcole.expectedAmount || selectedAutoEcole.expectedAmount === 0
+                              ? "⚠️ Montant attendu non configuré"
+                              : !selectedAutoEcole.totalPaid || selectedAutoEcole.totalPaid === 0
+                              ? "❌ Non payé"
+                              : selectedAutoEcole.totalPaid >= selectedAutoEcole.expectedAmount
+                              ? "✅ Entièrement payé"
+                              : "⏳ Payé partiellement"
+                          }
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openEditPaymentModal(selectedAutoEcole)}
+                        className="p-4 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                        title="Modifier le montant"
+                      >
+                        <Edit className="w-12 h-12" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Payment History */}
+                  {selectedAutoEcole.paymentHistory && selectedAutoEcole.paymentHistory.length > 0 ? (
+                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                          Historique des Transactions
+                        </h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Référence</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Catégorie</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Méthode</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Montant</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Statut</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {selectedAutoEcole.paymentHistory.map((payment, index) => (
+                              <tr key={index} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 text-sm text-gray-900">
+                                  {new Date(payment.date).toLocaleDateString('fr-FR')}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-mono text-gray-700">
+                                  {payment.reference}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900">
+                                  {payment.description}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                                    {payment.categorie}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-700">
+                                  {payment.methodePayement}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="text-sm font-bold text-green-600">
+                                    +{payment.montant.toLocaleString()} DT
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                                    payment.statut === 'valide' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : payment.statut === 'en_attente'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {payment.statut === 'valide' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                                    {payment.statut === 'valide' ? 'Validé' : payment.statut === 'en_attente' ? 'En attente' : 'Annulé'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+                      <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-600 font-medium mb-2">Aucun paiement enregistré</p>
+                      <p className="text-gray-500 text-sm">Cette auto-école n'a pas encore effectué de paiement à AutoEcoli</p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-6">
                   {/* Summary Cards */}
@@ -1642,6 +1948,135 @@ export default function AutoEcolePage() {
               >
                 <CheckCircle2 className="w-5 h-5" />
                 Approuver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {showEditPaymentModal && editingPaymentAutoEcole && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-black">Modifier le montant de paiement</h3>
+              <button
+                onClick={() => {
+                  setShowEditPaymentModal(false);
+                  setEditingPaymentAutoEcole(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-black font-medium">{editingPaymentAutoEcole.name}</p>
+                <p className="text-xs text-black mt-1">{editingPaymentAutoEcole.email}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Montant attendu (DT)
+                </label>
+                <input
+                  type="number"
+                  value={newExpectedAmount}
+                  onChange={(e) => setNewExpectedAmount(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  placeholder="Ex: 500"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-black mb-2">
+                  Montant payé (DT)
+                </label>
+                <input
+                  type="number"
+                  value={newTotalPaid}
+                  onChange={(e) => setNewTotalPaid(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-black"
+                  placeholder="Ex: 250"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+
+              {newExpectedAmount > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-black">Statut de paiement:</span>
+                    <span className={
+                      `text-sm font-bold ${
+                        newTotalPaid === 0
+                          ? "text-red-600"
+                          : newTotalPaid >= newExpectedAmount
+                          ? "text-green-600"
+                          : "text-orange-600"
+                      }`
+                    }>
+                      {
+                        newTotalPaid === 0
+                          ? "Non payé"
+                          : newTotalPaid >= newExpectedAmount
+                          ? "Payé"
+                          : "Payé partiellement"
+                      }
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={
+                        `h-2 rounded-full transition-all ${
+                          newTotalPaid >= newExpectedAmount
+                            ? "bg-green-500"
+                            : newTotalPaid > 0
+                            ? "bg-orange-500"
+                            : "bg-red-500"
+                        }`
+                      }
+                      style={{ width: `${Math.min((newTotalPaid / newExpectedAmount) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-black mt-2 text-center">
+                    {newTotalPaid.toLocaleString()} / {newExpectedAmount.toLocaleString()} DT ({Math.round((newTotalPaid / newExpectedAmount) * 100)}%)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditPaymentModal(false);
+                  setEditingPaymentAutoEcole(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                disabled={actionLoading === editingPaymentAutoEcole.id}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={updatePaymentAmount}
+                disabled={actionLoading === editingPaymentAutoEcole.id}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {actionLoading === editingPaymentAutoEcole.id ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Mise à jour...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Enregistrer
+                  </>
+                )}
               </button>
             </div>
           </div>
