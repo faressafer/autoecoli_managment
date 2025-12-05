@@ -119,3 +119,14 @@ export interface Notification {
     [key: string]: any;
   };
 }
+
+export interface SupportRequest {
+  id: string;
+  fullName: string;
+  email: string;
+  subject: 'general' | 'technical' | 'partnership' | 'candidateSupport' | 'other';
+  message: string;
+  status: 'pending' | 'in-progress' | 'resolved';
+  createdAt: any;
+  language: 'fr' | 'ar';
+}

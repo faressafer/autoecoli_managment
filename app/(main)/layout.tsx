@@ -19,6 +19,7 @@ import {
     ChevronRight,
     Archive,
     Bell,
+    Headset,
 } from "lucide-react";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import {useAuth} from "@/contexts/AuthContext";
@@ -214,6 +215,11 @@ export default function MainLayout({
             name: "Notifications",
             href: "/notifications",
             icon: Bell,
+        },
+        {
+            name: "Support",
+            href: "/support",
+            icon: Headset,
         },
     ];
 
