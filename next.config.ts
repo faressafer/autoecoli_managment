@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Disable static optimization for pages that use Firebase auth
+  // This prevents build-time errors when Firebase credentials aren't available
+  experimental: {
+    missingSuspenseWithCSRBailout: false,
+  },
 };
 
 export default nextConfig;

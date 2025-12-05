@@ -501,7 +501,7 @@ export default function StrategieDeMarketingPage() {
                           {campaign.budget.toLocaleString()} TND
                         </p>
                         <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[80px]">
+                          <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-20">
                             <div 
                               className="bg-blue-500 h-1.5 rounded-full" 
                               style={{ width: `${(campaign.spent / campaign.budget) * 100}%` }}

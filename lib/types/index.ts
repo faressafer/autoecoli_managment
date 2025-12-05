@@ -103,3 +103,30 @@ export interface Invoice {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface Notification {
+  id: string;
+  autoEcoleId: string;
+  autoEcoleName: string;
+  type: 'info' | 'warning' | 'success' | 'error' | 'payment' | 'pack' | 'general';
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: any;
+  metadata?: {
+    packType?: string;
+    amount?: number;
+    [key: string]: any;
+  };
+}
+
+export interface SupportRequest {
+  id: string;
+  fullName: string;
+  email: string;
+  subject: 'general' | 'technical' | 'partnership' | 'candidateSupport' | 'other';
+  message: string;
+  status: 'pending' | 'in-progress' | 'resolved';
+  createdAt: any;
+  language: 'fr' | 'ar';
+}

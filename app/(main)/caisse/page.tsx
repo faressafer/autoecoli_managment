@@ -210,7 +210,7 @@ export default function CaissePage() {
       {/* Statistiques */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Solde actuel */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-linear-to-br from-blue-600 to-blue-700 text-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-white/20 rounded-lg">
               <Wallet className="w-6 h-6" />
@@ -604,7 +604,7 @@ export default function CaissePage() {
       {showDetailsModal && selectedTransaction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
+            <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
               <h3 className="text-xl font-bold">Détails de la transaction</h3>
               <button
                 onClick={() => setShowDetailsModal(false)}
