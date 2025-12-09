@@ -12,6 +12,7 @@ export interface SidebarPermissions {
   dashboard: boolean;
   candidats: boolean;
   moniteurs: boolean;
+  voiture: boolean;
   rendezvous: boolean;
   facturation: boolean;
   factureB: boolean;

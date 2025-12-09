@@ -13,6 +13,7 @@ export const DEFAULT_PERMISSIONS: Record<'bronze' | 'silver' | 'gold', SidebarPe
     dashboard: true,
     candidats: true,
     moniteurs: false,
+    voiture: false,
     rendezvous: false,
     facturation: true,
     factureB: false,
@@ -24,6 +25,7 @@ export const DEFAULT_PERMISSIONS: Record<'bronze' | 'silver' | 'gold', SidebarPe
     dashboard: true,
     candidats: true,
     moniteurs: true,
+    voiture: true,
     rendezvous: true,
     facturation: true,
     factureB: false,
@@ -35,6 +37,7 @@ export const DEFAULT_PERMISSIONS: Record<'bronze' | 'silver' | 'gold', SidebarPe
     dashboard: true,
     candidats: true,
     moniteurs: true,
+    voiture: true,
     rendezvous: true,
     facturation: true,
     factureB: true,
@@ -49,6 +52,7 @@ export const NO_PACK_PERMISSIONS: SidebarPermissions = {
   dashboard: true,
   candidats: false,
   moniteurs: false,
+  voiture: false,
   rendezvous: false,
   facturation: false,
   factureB: false,
@@ -83,6 +87,12 @@ export const SIDEBAR_MENU_ITEMS: SidebarMenuItem[] = [
     label: 'Moniteurs',
     description: 'Gestion des moniteurs',
     icon: '🚗'
+  },
+  {
+    key: 'voiture',
+    label: 'Voiture',
+    description: 'Gestion des véhicules',
+    icon: '🚙'
   },
   {
     key: 'rendezvous',
@@ -170,6 +180,7 @@ export function validatePermissions(permissions: Partial<SidebarPermissions>): S
     dashboard: permissions.dashboard ?? true,
     candidats: permissions.candidats ?? false,
     moniteurs: permissions.moniteurs ?? false,
+    voiture: permissions.voiture ?? false,
     rendezvous: permissions.rendezvous ?? false,
     facturation: permissions.facturation ?? false,
     factureB: permissions.factureB ?? false,

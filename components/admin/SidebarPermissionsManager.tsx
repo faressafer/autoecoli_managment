@@ -70,7 +70,7 @@ export default function SidebarPermissionsManager({
             Gestion du Sidebar
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            {autoEcoleName} - {enabledCount}/9 fonctionnalités activées
+            {autoEcoleName} - {enabledCount}/10 fonctionnalités activées
           </p>
         </div>
         
@@ -176,7 +176,7 @@ export default function SidebarPermissionsManager({
         <div className="text-sm text-gray-600">
           <p className="font-semibold">Résumé des modifications:</p>
           <p className="mt-1">
-            {enabledCount} fonctionnalités activées, {9 - enabledCount} désactivées
+            {enabledCount} fonctionnalités activées, {10 - enabledCount} désactivées
           </p>
         </div>
         
