@@ -4,14 +4,15 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 
+// Read from NEXT_PUBLIC_FIREBASE_* (.env.local locally, Docker build args in production).
 const firebaseConfig = {
-  apiKey: "AIzaSyAp6b0QN5jZggwQHDyQcXvYAEYi8ziP05k",
-  authDomain: "autoecoli.firebaseapp.com",
-  projectId: "autoecoli",
-  storageBucket: "autoecoli.firebasestorage.app",
-  messagingSenderId: "513531198907",
-  appId: "1:513531198907:web:7bd9d1a9d740614c6ad89e",
-  measurementId: "095P6NYFCD"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 // Avoid initializing Firebase during server-side builds when public API key is missing.
 // Next.js may import this module while prerendering pages during `next build`.
