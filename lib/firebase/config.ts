@@ -5,13 +5,13 @@ import { getStorage } from 'firebase/storage';
 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAp6b0QN5jZggwQHDyQcXvYAEYi8ziP05k",
+  apiKey: "AIzaSyCBT1f6A_8u8IBH4xjo6V1Hm0q0osk2arY",
   authDomain: "autoecoli.firebaseapp.com",
   projectId: "autoecoli",
   storageBucket: "autoecoli.firebasestorage.app",
   messagingSenderId: "513531198907",
-  appId: "1:513531198907:web:7bd9d1a9d740614c6ad89e",
-  measurementId: "095P6NYFCD"
+  appId: "1:513531198907:web:6acb48a31229ff3b6ad89e",
+  measurementId: "G-Q4Y0YZ0HMV"
 };
 // Avoid initializing Firebase during server-side builds when public API key is missing.
 // Next.js may import this module while prerendering pages during `next build`.

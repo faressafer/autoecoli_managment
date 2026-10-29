@@ -1,0 +1,10 @@
+{
+  "hosting": {
+    "site": "autoecolimanagment",
+    "public": "out",
+    "predeploy": ["npm run build"],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  }
+}
