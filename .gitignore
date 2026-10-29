@@ -41,3 +41,15 @@ yarn-error.log*
 next-env.d.ts
 
 
+# firebase
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log*
+
+# ide (personal state; shared project config under .idea stays tracked)
+.idea/copilot.data.migration*.xml
+
+# windows
+Thumbs.db
+desktop.ini
+!.env.example
