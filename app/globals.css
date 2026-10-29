@@ -24,11 +24,9 @@
   --color-off-white: var(--off-white);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* The app is light-only: every surface is white/gray, so a dark-mode foreground made text near-invisible. */
+:root {
+  color-scheme: light;
 }
 
 body {

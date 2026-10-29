@@ -17,6 +17,7 @@ import {
   Send,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import {
   getAllNotifications,
   getNotificationsByAutoEcole,
@@ -209,6 +210,7 @@ export default function NotificationsPage() {
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const notificationsPage = usePagination(notifications, [filterType]);
 
   return (
     <div className="p-6">
@@ -279,7 +281,7 @@ export default function NotificationsPage() {
             <p className="text-sm text-gray-400 mt-1">Vous êtes à jour!</p>
           </div>
         ) : (
-          notifications.map((notification) => (
+          notificationsPage.pageItems.map((notification) => (
             <div
               key={notification.id}
               className={`bg-white rounded-lg border-l-4 shadow-sm p-4 transition-all ${
@@ -332,10 +334,11 @@ export default function NotificationsPage() {
           ))
         )}
       </div>
+      {!loading && <Pagination {...notificationsPage} label="notifications" className="mt-4 rounded-lg border border-gray-200" />}
 
       {/* Create Notification Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
               <h3 className="text-xl font-bold">Créer une notification</h3>

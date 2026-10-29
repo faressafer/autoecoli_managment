@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, doc, updateDoc, deleteDoc, Timestamp, query, where, addDoc, getDoc, setDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/useToast";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import dynamic from "next/dynamic";
 import SidebarPermissionsManager from "@/components/admin/SidebarPermissionsManager";
 import { SidebarPermissions } from "@/lib/types";
@@ -551,6 +552,9 @@ export default function AutoEcolePage() {
     return matchesSearch && matchesStatus && matchesPack;
   });
 
+  // Shared by the cards and the table view
+  const autoEcolesPage = usePagination(filteredAutoEcoles, [searchTerm, filterStatus, filterPack, viewMode]);
+
   const getPackIcon = (pack?: PackType) => {
     switch (pack) {
       case "gold": return <Crown className="w-5 h-5 text-yellow-500" />;
@@ -759,7 +763,7 @@ export default function AutoEcolePage() {
                 Aucune auto-école trouvée
               </div>
             ) : (
-              filteredAutoEcoles.map((autoEcole) => {
+              autoEcolesPage.pageItems.map((autoEcole) => {
                 const schoolCandidates = candidates.filter(c => c.autoEcoleId === autoEcole.id);
                 const schoolInstructors = instructors.filter(i => i.autoEcoleId === autoEcole.id);
 
@@ -848,6 +852,7 @@ export default function AutoEcolePage() {
               })
             )}
           </div>
+          {!loading && <Pagination {...autoEcolesPage} label="auto-écoles" className="mt-6 -mx-6 -mb-6 px-6" />}
         </div>
       )}
 
@@ -898,7 +903,7 @@ export default function AutoEcolePage() {
                   </td>
                 </tr>
               ) : (
-                filteredAutoEcoles.map((autoEcole) => (
+                autoEcolesPage.pageItems.map((autoEcole) => (
                   <tr key={autoEcole.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
@@ -1031,12 +1036,13 @@ export default function AutoEcolePage() {
             </tbody>
           </table>
         </div>
+        {!loading && <Pagination {...autoEcolesPage} label="auto-écoles" />}
       </div>
       )}
 
       {/* Status Selection Modal */}
       {showStatusModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               Changer le Statut
@@ -1115,7 +1121,7 @@ export default function AutoEcolePage() {
 
       {/* Pack Selection Modal */}
       {showPackModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               Sélectionner un Pack
@@ -1242,7 +1248,7 @@ export default function AutoEcolePage() {
 
       {/* Details Modal */}
       {showDetailsModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-gray-900">
@@ -1387,7 +1393,7 @@ export default function AutoEcolePage() {
 
       {/* Full Details Modal with Tabs */}
       {showFullDetailsModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="bg-linear-to-r from-blue-500 to-orange-500 text-white p-6">
@@ -1892,7 +1898,7 @@ export default function AutoEcolePage() {
 
       {/* Payment Request Modal */}
       {showPaymentModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -1992,7 +1998,7 @@ export default function AutoEcolePage() {
 
       {/* Edit Payment Modal */}
       {showEditPaymentModal && editingPaymentAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-black">Modifier le montant de paiement</h3>

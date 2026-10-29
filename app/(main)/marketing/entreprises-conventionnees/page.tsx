@@ -401,7 +401,7 @@ export default function EntreprisesConventionneesMarketingPage() {
 
       {/* Details Modal */}
       {showDetailsModal && selectedPartner && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="bg-linear-to-r from-blue-500 to-purple-500 text-white p-6">

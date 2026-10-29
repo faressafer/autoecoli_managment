@@ -1,10 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { Users, Car, DollarSign, Calendar, Plus, UserCog, FileText, CheckCircle2, XCircle, Power, Crown, Star, Circle, Eye, Edit2, AlertCircle } from "lucide-react";
+import {
+  Users,
+  Car,
+  UserCog,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Power,
+  Crown,
+  Star,
+  Circle,
+  RefreshCw,
+  ArrowRight,
+  ClipboardList,
+  type LucideIcon,
+} from "lucide-react";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, where, doc, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/useToast";
 import dynamic from "next/dynamic";
@@ -12,36 +27,133 @@ import dynamic from "next/dynamic";
 // Dynamically import the map component to avoid SSR issues with Leaflet
 const TunisiaMap = dynamic(() => import("@/components/TunisiaMap"), {
   ssr: false,
-  loading: () => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="w-full h-[500px] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mx-auto"></div>
-          <p className="text-gray-500 mt-4 text-sm">Chargement de la carte...</p>
-        </div>
-      </div>
-    </div>
-  ),
+  loading: () => <div className="h-[560px] animate-pulse rounded-2xl border border-gray-200 bg-white" />,
 });
 
+const isSchoolRole = (role?: string) => role === "moniteur" || role === "autoecole" || role === "auto-ecole";
+
+// Firestore Timestamp, Date, ISO string or millis → Date (or null)
+function toDate(value: any): Date | null {
+  if (!value) return null;
+  const d = value.toDate?.() ?? new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+const formatDate = (value: any) => toDate(value)?.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) ?? "—";
+
+const STATUS: Record<string, { label: string; className: string }> = {
+  active: { label: "Active", className: "bg-green-50 text-green-700 ring-green-600/20" },
+  inactive: { label: "Inactive", className: "bg-red-50 text-red-700 ring-red-600/20" },
+  pending: { label: "En attente", className: "bg-amber-50 text-amber-700 ring-amber-600/20" },
+};
+
+function StatusBadge({ status }: { status?: string }) {
+  const s = STATUS[status ?? ""] ?? { label: status || "—", className: "bg-gray-50 text-gray-600 ring-gray-500/20" };
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${s.className}`}>{s.label}</span>;
+}
+
+const TONES = {
+  blue: "bg-blue-50 text-[#1E3A8A]",
+  orange: "bg-orange-50 text-[#F97316]",
+  green: "bg-green-50 text-green-600",
+  violet: "bg-violet-50 text-violet-600",
+};
+
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  href,
+  tone,
+  loading,
+  highlight,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  hint?: string;
+  href?: string;
+  tone: keyof typeof TONES;
+  loading: boolean;
+  highlight?: boolean;
+}) {
+  const body = (
+    <div
+      className={`group h-full rounded-2xl border bg-white p-5 transition-all ${
+        highlight ? "border-orange-200 ring-1 ring-orange-100" : "border-gray-200"
+      } ${href ? "hover:-translate-y-0.5 hover:shadow-md" : ""}`}
+    >
+      <div className="flex items-start justify-between">
+        <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${TONES[tone]}`}>
+          <Icon className="h-5 w-5" />
+        </span>
+        {href && <ArrowRight className="h-4 w-4 text-gray-300 transition-colors group-hover:text-gray-500" />}
+      </div>
+      <p className="mt-4 text-sm font-medium text-gray-500">{label}</p>
+      {loading ? (
+        <div className="mt-1 h-8 w-16 animate-pulse rounded bg-gray-100" />
+      ) : (
+        <p className="mt-1 text-3xl font-bold tracking-tight text-gray-900">{value.toLocaleString("fr-FR")}</p>
+      )}
+      {hint && !loading && <p className="mt-1 text-xs text-gray-500">{hint}</p>}
+    </div>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
+
+function Panel({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      <header className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>}
+        </div>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function EmptyRow({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 px-5 py-10 text-center text-sm text-gray-500">
+      <Icon className="h-8 w-8 text-gray-300" />
+      {text}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
-  const { error: showError, ToastContainer } = useToast();
+  const { error: showError, success: showSuccess, ToastContainer } = useToast();
   const [candidates, setCandidates] = useState<any[]>([]);
   const [instructors, setInstructors] = useState<any[]>([]);
   const [autoEcoles, setAutoEcoles] = useState<any[]>([]);
   const [onboardingSurveys, setOnboardingSurveys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedAutoEcole, setSelectedAutoEcole] = useState<any | null>(null);
   const [showPackModal, setShowPackModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [roleFilter, setRoleFilter] = useState<string>("all");
-  const { userProfile, isSuperAdmin, adminProfile } = useAuth();
+  const { userProfile, isSuperAdmin, adminProfile, autoEcole } = useAuth();
 
   useEffect(() => {
     loadData();
   }, [userProfile, isSuperAdmin]);
+
+  // Candidates + instructors of one auto-école (its two subcollections, fetched together)
+  const loadSchoolPeople = async (autoEcoleId: string, autoEcoleName?: string) => {
+    const [candidatesSnapshot, instructorsSnapshot] = await Promise.all([
+      getDocs(collection(db!, "autoecoles", autoEcoleId, "candidat")),
+      getDocs(collection(db!, "autoecoles", autoEcoleId, "moniteur")),
+    ]);
+    const tag = (d: any) => ({ id: d.id, autoEcoleId, autoEcoleName, ...d.data() });
+    return { candidates: candidatesSnapshot.docs.map(tag), instructors: instructorsSnapshot.docs.map(tag) };
+  };
 
   const loadData = async () => {
     try {
@@ -49,151 +161,92 @@ export default function DashboardPage() {
         console.error("Firebase Firestore n'est pas initialisé");
         return;
       }
-      // Super Admin: Load all auto-écoles
       if (isSuperAdmin) {
-        const autoEcolesRef = collection(db, "autoecoles");
-        const autoEcolesSnapshot = await getDocs(autoEcolesRef);
-        const autoEcolesData = autoEcolesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const [autoEcolesSnapshot, surveysSnapshot] = await Promise.all([
+          getDocs(collection(db, "autoecoles")),
+          getDocs(collection(db, "onboardingSurveys")),
+        ]);
+        const autoEcolesData = autoEcolesSnapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
         setAutoEcoles(autoEcolesData);
+        setOnboardingSurveys(surveysSnapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
 
-        // Load onboarding surveys
-        const surveysRef = collection(db, "onboardingSurveys");
-        const surveysSnapshot = await getDocs(surveysRef);
-        const surveysData = surveysSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setOnboardingSurveys(surveysData);
-
-        // Load all candidates from all auto-écoles
-        let allCandidates: any[] = [];
-        let allInstructors: any[] = [];
-
-        for (const autoEcole of autoEcolesData) {
-          const candidatsRef = collection(db, "autoecoles", autoEcole.id, "candidat");
-          const candidatesSnapshot = await getDocs(candidatsRef);
-          candidatesSnapshot.docs.forEach(doc => {
-            allCandidates.push({
-              id: doc.id,
-              autoEcoleId: autoEcole.id,
-              autoEcoleName: (autoEcole as any).name,
-              ...doc.data()
-            });
-          });
-
-          const moniteurRef = collection(db, "autoecoles", autoEcole.id, "moniteur");
-          const instructorsSnapshot = await getDocs(moniteurRef);
-          instructorsSnapshot.docs.forEach(doc => {
-            allInstructors.push({
-              id: doc.id,
-              autoEcoleId: autoEcole.id,
-              autoEcoleName: (autoEcole as any).name,
-              ...doc.data()
-            });
-          });
-        }
-
-        setCandidates(allCandidates);
-        setInstructors(allInstructors);
+        // All schools in parallel instead of one after the other
+        const people = await Promise.all(autoEcolesData.map((ae) => loadSchoolPeople(ae.id, ae.name)));
+        setCandidates(people.flatMap((p) => p.candidates));
+        setInstructors(people.flatMap((p) => p.instructors));
       } else {
-        // Regular user: Load only their auto-école data
         if (!userProfile?.autoEcoleId && !userProfile?.uid) return;
-
-        const autoEcoleId = userProfile.autoEcoleId || userProfile.uid;
-
-        // Load candidates from subcollection: autoecoles/{autoEcoleId}/candidat
-        const candidatsRef = collection(db, "autoecoles", autoEcoleId, "candidat");
-        const candidatesSnapshot = await getDocs(candidatsRef);
-        const candidatesData = candidatesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setCandidates(candidatesData);
-
-        // Load instructors from subcollection: autoecoles/{autoEcoleId}/moniteur
-        const moniteurRef = collection(db, "autoecoles", autoEcoleId, "moniteur");
-        const instructorsSnapshot = await getDocs(moniteurRef);
-        const instructorsData = instructorsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setInstructors(instructorsData);
+        const people = await loadSchoolPeople(userProfile.autoEcoleId || userProfile.uid);
+        setCandidates(people.candidates);
+        setInstructors(people.instructors);
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
+      showError("Impossible de charger les données du tableau de bord");
     } finally {
       setLoading(false);
     }
   };
 
-  // Get candidate count for each instructor
-  const getCandidateCountForInstructor = (instructorId: string) => {
-    return candidates.filter(candidate => candidate.moniteurId === instructorId).length;
+  const refresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
-  // Get recent candidates (last 3)
-  const recentCandidates = [...candidates]
-    .sort((a, b) => {
-      const timeA = a.createdAt?.toMillis?.() || 0;
-      const timeB = b.createdAt?.toMillis?.() || 0;
-      return timeB - timeA;
-    })
-    .slice(0, 3);
+  const recentCandidates = useMemo(
+    () =>
+      [...candidates]
+        .sort((a, b) => (toDate(b.createdAt ?? b.dateInscription)?.getTime() ?? 0) - (toDate(a.createdAt ?? a.dateInscription)?.getTime() ?? 0))
+        .slice(0, 5),
+    [candidates]
+  );
 
-  const updateStatus = async (status: string) => {
-    if (!selectedAutoEcole || !isSuperAdmin) return;
-    if (!db) {
-      console.error("Firebase Firestore n'est pas initialisé");
-      return;
-    }
-    
+  const pendingAutoEcoles = autoEcoles.filter((ae) => ae.status === "pending");
+  const activeAutoEcoles = autoEcoles.filter((ae) => ae.status === "active").length;
+  const availableInstructors = instructors.filter((i) => i.status === "Disponible").length;
+
+  const surveyCounts = {
+    all: onboardingSurveys.length,
+    candidat: onboardingSurveys.filter((s) => s.role === "candidat").length,
+    autoecole: onboardingSurveys.filter((s) => isSchoolRole(s.role)).length,
+  };
+
+  const openModal = (autoEcole: any, modal: "details" | "status" | "pack") => {
+    setSelectedAutoEcole(autoEcole);
+    setShowDetailsModal(modal === "details");
+    setShowStatusModal(modal === "status");
+    setShowPackModal(modal === "pack");
+  };
+
+  const closeModals = () => {
+    setShowDetailsModal(false);
+    setShowStatusModal(false);
+    setShowPackModal(false);
+    setSelectedAutoEcole(null);
+  };
+
+  const updateAutoEcole = async (fields: Record<string, unknown>, successMessage: string, errorMessage: string) => {
+    if (!selectedAutoEcole || !isSuperAdmin || !db) return;
     try {
       setActionLoading(selectedAutoEcole.id);
-      const autoEcoleRef = doc(db, "autoecoles", selectedAutoEcole.id);
-      await updateDoc(autoEcoleRef, {
-        status: status,
-        updatedAt: Timestamp.now()
-      });
-      
-      setShowStatusModal(false);
-      setSelectedAutoEcole(null);
+      await updateDoc(doc(db, "autoecoles", selectedAutoEcole.id), { ...fields, updatedAt: Timestamp.now() });
+      closeModals();
+      showSuccess(successMessage);
       await loadData();
     } catch (err) {
-      console.error("Error updating status:", err);
-      showError("Erreur lors de la mise à jour du statut");
+      console.error(errorMessage, err);
+      showError(errorMessage);
     } finally {
       setActionLoading(null);
     }
   };
 
-  const updatePack = async (pack: string | null) => {
-    if (!selectedAutoEcole || !isSuperAdmin) return;
-    if (!db) {
-      console.error("Firebase Firestore n'est pas initialisé");
-      return;
-    }
-    
-    try {
-      setActionLoading(selectedAutoEcole.id);
-      const autoEcoleRef = doc(db, "autoecoles", selectedAutoEcole.id);
-      await updateDoc(autoEcoleRef, {
-        pack: pack,
-        updatedAt: Timestamp.now()
-      });
-      
-      setShowPackModal(false);
-      setSelectedAutoEcole(null);
-      await loadData();
-    } catch (err) {
-      console.error("Error updating pack:", err);
-      showError("Erreur lors de la mise à jour du pack");
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const updateStatus = (status: string) =>
+    updateAutoEcole({ status }, "Statut mis à jour", "Erreur lors de la mise à jour du statut");
+
+  const updatePack = (pack: string | null) =>
+    updateAutoEcole({ pack }, "Pack mis à jour", "Erreur lors de la mise à jour du pack");
 
   const getPackIcon = (pack?: string) => {
     switch (pack) {
@@ -209,16 +262,10 @@ export default function DashboardPage() {
       gold: "bg-yellow-50 text-yellow-700 border-yellow-200",
       silver: "bg-gray-50 text-gray-700 border-gray-200",
       bronze: "bg-orange-50 text-orange-700 border-orange-200",
-      default: "bg-gray-50 text-gray-400 border-gray-200"
+      default: "bg-gray-50 text-gray-400 border-gray-200",
     };
-    
     return badges[pack as keyof typeof badges] || badges.default;
   };
-
-  // Calculate stats
-  const availableInstructors = instructors.filter(i => i.status === "Disponible").length;
-  const totalRevenue = autoEcoles.reduce((sum, ae) => sum + (ae.monthlyRevenue || 0), 0);
-  const pendingApprovals = autoEcoles.filter(ae => ae.status === "pending").length;
 
   if (!userProfile && !isSuperAdmin) {
     return (
@@ -231,854 +278,250 @@ export default function DashboardPage() {
     );
   }
 
+  const displayName = isSuperAdmin ? adminProfile?.username : autoEcole?.name;
+  const lastLogin = isSuperAdmin ? toDate(adminProfile?.lastLogin) : null;
+  const today = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
   return (
-    <div className="p-4 space-y-6">
-      {/* Super Admin Welcome Banner */}
-      {isSuperAdmin && adminProfile && (
-        <div className="bg-linear-to-r from-blue-500 to-orange-500 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold mb-2">Bienvenue, {adminProfile.username}</h1>
-              <p className="text-white/90">Tableau de bord Super Admin - Vue d'ensemble complète</p>
-              {adminProfile.lastLogin && (
-                <p className="text-sm text-blue-100 mt-2">
-                  Dernière connexion: {new Date(adminProfile.lastLogin?.toDate?.() || adminProfile.lastLogin).toLocaleString('fr-FR')}
-                </p>
-              )}
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
-              <p className="text-sm font-medium">Rôle</p>
-              <p className="text-lg font-bold">{adminProfile.role.toUpperCase()}</p>
-            </div>
-          </div>
+    <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+      {/* Greeting */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium capitalize text-gray-500">{today}</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+            Bonjour{displayName ? `, ${displayName}` : ""}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {isSuperAdmin ? "Vue d'ensemble de toute la plateforme AutoEcoli." : "Vue d'ensemble de votre auto-école."}
+            {lastLogin && <> · Dernière connexion le {lastLogin.toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}</>}
+          </p>
         </div>
-      )}
-   
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={refreshing || loading}
+          className="inline-flex items-center gap-2 self-start rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60 sm:self-auto"
+        >
+          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          Actualiser
+        </button>
+      </div>
 
-      {/* Super Admin: Onboarding Survey Statistics */}
-      {isSuperAdmin && onboardingSurveys.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-900">Statistiques des Questionnaires d'Onboarding</h2>
-            <p className="text-sm text-gray-500 mt-1">Analyse des réponses au questionnaire d'intégration</p>
-          </div>
+      {/* Key figures */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+        {isSuperAdmin ? (
+          <>
+            <StatCard icon={Car} tone="blue" label="Auto-écoles" value={autoEcoles.length} hint={`${activeAutoEcoles} actives`} href="/commercial/auto-ecole" loading={loading} />
+            <StatCard
+              icon={Clock}
+              tone="orange"
+              label="En attente d'approbation"
+              value={pendingAutoEcoles.length}
+              hint={pendingAutoEcoles.length ? "À valider ci-dessous" : "Rien à valider"}
+              loading={loading}
+              highlight={pendingAutoEcoles.length > 0}
+            />
+            <StatCard icon={Users} tone="green" label="Candidats" value={candidates.length} hint="Toutes auto-écoles confondues" href="/commercial/candidat" loading={loading} />
+            <StatCard icon={ClipboardList} tone="violet" label="Réponses au questionnaire" value={onboardingSurveys.length} hint={`${surveyCounts.candidat} candidats · ${surveyCounts.autoecole} auto-écoles`} href="/questionnaires" loading={loading} />
+          </>
+        ) : (
+          <>
+            <StatCard icon={Users} tone="green" label="Candidats" value={candidates.length} loading={loading} />
+            <StatCard icon={UserCog} tone="blue" label="Moniteurs" value={instructors.length} loading={loading} />
+            <StatCard icon={CheckCircle2} tone="orange" label="Moniteurs disponibles" value={availableInstructors} loading={loading} />
+          </>
+        )}
+      </div>
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-linear-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 font-medium">Total Réponses</p>
-                  <p className="text-4xl font-bold text-blue-900 mt-2">{onboardingSurveys.length}</p>
-                </div>
-                <FileText className="w-12 h-12 text-blue-500" />
-              </div>
-            </div>
+      {/* To do + latest activity */}
+      <div className={`grid gap-6 ${isSuperAdmin ? "xl:grid-cols-2" : ""}`}>
+        {isSuperAdmin && (
+          <Panel
+            title="Auto-écoles à valider"
+            subtitle={pendingAutoEcoles.length ? `${pendingAutoEcoles.length} en attente d'approbation` : undefined}
+            action={
+              <Link href="/commercial/auto-ecole" className="shrink-0 text-sm font-medium text-[#1E3A8A] hover:underline">
+                Tout voir
+              </Link>
+            }
+          >
+            {loading ? (
+              <div className="space-y-3 p-5">{[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-gray-100" />)}</div>
+            ) : pendingAutoEcoles.length === 0 ? (
+              <EmptyRow icon={CheckCircle2} text="Aucune auto-école en attente. Tout est à jour." />
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {pendingAutoEcoles.slice(0, 5).map((ae) => (
+                  <li key={ae.id} className="flex items-center gap-3 px-5 py-3">
+                    {ae.logo ? (
+                      <img src={ae.logo} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-sm font-bold text-gray-500">
+                        {(ae.name || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-gray-900">{ae.name || "Sans nom"}</p>
+                      <p className="truncate text-xs text-gray-500">
+                        {[ae.city, `inscrite le ${formatDate(ae.createdAt)}`].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openModal(ae, "details")}
+                      className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                    >
+                      Détails
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openModal(ae, "status")}
+                      className="rounded-lg bg-[#1E3A8A] px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-[#1E3A8A]/90"
+                    >
+                      Traiter
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        )}
 
-            <div className="bg-linear-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-green-600 font-medium">Candidats</p>
-                  <p className="text-4xl font-bold text-green-900 mt-2">
-                    {onboardingSurveys.filter((s: any) => s.role === "candidat").length}
-                  </p>
-                  <p className="text-xs text-green-600 mt-1">
-                    {((onboardingSurveys.filter((s: any) => s.role === "candidat").length / onboardingSurveys.length) * 100).toFixed(1)}%
-                  </p>
-                </div>
-                <Users className="w-12 h-12 text-green-500" />
-              </div>
-            </div>
+        <Panel
+          title="Derniers candidats inscrits"
+          action={
+            isSuperAdmin && (
+              <Link href="/commercial/candidat" className="shrink-0 text-sm font-medium text-[#1E3A8A] hover:underline">
+                Tout voir
+              </Link>
+            )
+          }
+        >
+          {loading ? (
+            <div className="space-y-3 p-5">{[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-gray-100" />)}</div>
+          ) : recentCandidates.length === 0 ? (
+            <EmptyRow icon={Users} text="Aucun candidat pour le moment." />
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {recentCandidates.map((c) => (
+                <li key={`${c.autoEcoleId}-${c.id}`} className="flex items-center gap-3 px-5 py-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-50 text-sm font-bold text-green-700">
+                    {`${c.firstName?.[0] ?? ""}${c.lastName?.[0] ?? ""}`.toUpperCase() || "?"}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-gray-900">
+                      {[c.firstName, c.lastName].filter(Boolean).join(" ") || "Candidat"}
+                    </p>
+                    <p className="truncate text-xs text-gray-500">{c.autoEcoleName || c.email || c.phone || "—"}</p>
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400">{formatDate(c.createdAt ?? c.dateInscription)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </div>
 
-            <div className="bg-linear-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-purple-600 font-medium">Moniteurs/Auto-écoles</p>
-                  <p className="text-4xl font-bold text-purple-900 mt-2">
-                    {onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole").length}
-                  </p>
-                  <p className="text-xs text-purple-600 mt-1">
-                    {((onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole").length / onboardingSurveys.length) * 100).toFixed(1)}%
-                  </p>
-                </div>
-                <Car className="w-12 h-12 text-purple-500" />
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Statistics - Candidats */}
-          <div className="mb-8">
-            <div className="bg-linear-to-r from-green-500 to-blue-500 rounded-lg p-4 mb-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Users className="w-7 h-7" />
-                Réponses des Candidats
-              </h2>
-              <p className="text-white/90 text-sm mt-1">
-                {onboardingSurveys.filter((s: any) => s.role === "candidat").length} réponses collectées
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Q1: Quel est votre objectif en vous inscrivant sur Autoécolie ? */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Quel est votre objectif en vous inscrivant sur Autoécolie ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const candidatSurveys = onboardingSurveys.filter((s: any) => s.role === "candidat");
-                    const objectives = candidatSurveys
-                      .filter(s => s.objectif)
-                      .map(s => s.objectif);
-                    
-                    const objectiveCounts = objectives.reduce((acc: any, obj: string) => {
-                      acc[obj] = (acc[obj] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(objectiveCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = candidatSurveys.length;
-                    const maxCount = Math.max(...Object.values(objectiveCounts) as number[]);
-
-                    return Object.entries(objectiveCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([objective, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        const barColors = ['bg-blue-600', 'bg-blue-500', 'bg-blue-400', 'bg-blue-300'];
-                        return (
-                          <div key={objective}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{objective}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-blue-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q2: Avez-vous déjà conduit ? */}
-              <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Avez-vous déjà conduit ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const candidatSurveys = onboardingSurveys.filter((s: any) => s.role === "candidat");
-                    const experiences = candidatSurveys
-                      .filter(s => s.experienceConduite)
-                      .map(s => s.experienceConduite);
-                    
-                    const experienceCounts = experiences.reduce((acc: any, exp: string) => {
-                      acc[exp] = (acc[exp] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(experienceCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = candidatSurveys.length;
-                    const barColors = ['bg-green-600', 'bg-green-500', 'bg-green-400'];
-
-                    return Object.entries(experienceCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([experience, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={experience}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{experience}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-green-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q3: Une plateforme vous serait-elle utile pour faciliter votre permis ? */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Une plateforme vous serait-elle utile pour faciliter votre permis ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const candidatSurveys = onboardingSurveys.filter((s: any) => s.role === "candidat");
-                    const features = candidatSurveys
-                      .filter(s => s.fonctionnalitesManquantes)
-                      .flatMap(s => Array.isArray(s.fonctionnalitesManquantes) ? s.fonctionnalitesManquantes : [s.fonctionnalitesManquantes])
-                      .filter(f => f && f.length > 2); // Filter out single characters and "Autre"
-                    
-                    const featureCounts = features.reduce((acc: any, feature: string) => {
-                      acc[feature] = (acc[feature] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(featureCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = features.length;
-                    const barColors = ['bg-orange-600', 'bg-orange-500', 'bg-orange-400', 'bg-orange-300'];
-
-                    return Object.entries(featureCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([feature, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={feature}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{feature}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-orange-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q4: Quelle langue préférez-vous ? */}
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Quelle langue préférez-vous ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const candidatSurveys = onboardingSurveys.filter((s: any) => s.role === "candidat");
-                    const languages = candidatSurveys
-                      .filter(s => s.language)
-                      .map(s => s.language);
-                    
-                    const languageCounts = languages.reduce((acc: any, lang: string) => {
-                      acc[lang] = (acc[lang] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    const languageNames: any = {
-                      'fr': 'Français',
-                      'ar': 'Arabe',
-                      'en': 'Anglais'
-                    };
-
-                    if (Object.keys(languageCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = candidatSurveys.length;
-                    const barColors = ['bg-purple-600', 'bg-purple-500', 'bg-purple-400'];
-
-                    return Object.entries(languageCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([lang, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={lang}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{languageNames[lang] || lang}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-purple-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Detailed Statistics - Moniteurs/Auto-écoles */}
-          <div className="mb-8">
-            <div className="bg-linear-to-r from-purple-500 to-pink-500 rounded-lg p-4 mb-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Car className="w-7 h-7" />
-                Réponses des Moniteurs/Auto-écoles
-              </h2>
-              <p className="text-white/90 text-sm mt-1">
-                {onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole").length} réponses collectées
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Q1: Quel type de cours donnez-vous ? */}
-              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Quel type de cours donnez-vous ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const moniteurSurveys = onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole");
-                    const types = moniteurSurveys
-                      .filter(s => s.typeCours)
-                      .flatMap(s => Array.isArray(s.typeCours) ? s.typeCours : [s.typeCours]);
-                    
-                    const typeCounts = types.reduce((acc: any, type: string) => {
-                      acc[type] = (acc[type] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(typeCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = types.length;
-                    const barColors = ['bg-indigo-600', 'bg-indigo-500', 'bg-indigo-400', 'bg-indigo-300'];
-
-                    return Object.entries(typeCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([type, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={type}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{type}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-indigo-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q2: Quel est votre objectif sur Autoécolie ? */}
-              <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Quel est votre objectif sur Autoécolie ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const moniteurSurveys = onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole");
-                    const objectives = moniteurSurveys
-                      .filter(s => s.objectifMoniteur)
-                      .flatMap(s => Array.isArray(s.objectifMoniteur) ? s.objectifMoniteur : [s.objectifMoniteur]);
-                    
-                    const objectiveCounts = objectives.reduce((acc: any, obj: string) => {
-                      acc[obj] = (acc[obj] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(objectiveCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = objectives.length;
-                    const barColors = ['bg-red-600', 'bg-red-500', 'bg-red-400', 'bg-red-300'];
-
-                    return Object.entries(objectiveCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([objective, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={objective}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{objective}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-red-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q3: Qu'est-ce qui pourrait vous empêcher de vous inscrire ou de payer ? */}
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Qu'est-ce qui pourrait vous empêcher de vous inscrire ou de payer ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const moniteurSurveys = onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole");
-                    const freins = moniteurSurveys
-                      .filter(s => s.freins)
-                      .flatMap(s => Array.isArray(s.freins) ? s.freins : [s.freins]);
-                    
-                    const freinCounts = freins.reduce((acc: any, frein: string) => {
-                      acc[frein] = (acc[frein] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    if (Object.keys(freinCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = freins.length;
-                    const barColors = ['bg-teal-600', 'bg-teal-500', 'bg-teal-400', 'bg-teal-300'];
-
-                    return Object.entries(freinCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([frein, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={frein}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{frein}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-teal-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-
-              {/* Q4: Quelle langue préférez-vous ? */}
-              <div className="bg-pink-50 border border-pink-200 rounded-lg p-6">
-                <h3 className="font-bold text-gray-900 mb-4 text-lg">
-                  Quelle langue préférez-vous ?
-                </h3>
-                <div className="space-y-4">
-                  {(() => {
-                    const moniteurSurveys = onboardingSurveys.filter((s: any) => s.role === "moniteur" || s.role === "autoecole" || s.role === "auto-ecole");
-                    const languages = moniteurSurveys
-                      .filter(s => s.language)
-                      .map(s => s.language);
-                    
-                    const languageCounts = languages.reduce((acc: any, lang: string) => {
-                      acc[lang] = (acc[lang] || 0) + 1;
-                      return acc;
-                    }, {});
-
-                    const languageNames: any = {
-                      'fr': 'Français',
-                      'ar': 'Arabe',
-                      'en': 'Anglais'
-                    };
-
-                    if (Object.keys(languageCounts).length === 0) {
-                      return <p className="text-sm text-gray-500">Aucune réponse</p>;
-                    }
-
-                    const total = moniteurSurveys.length;
-                    const barColors = ['bg-pink-600', 'bg-pink-500', 'bg-pink-400'];
-
-                    return Object.entries(languageCounts)
-                      .sort(([, a]: any, [, b]: any) => b - a)
-                      .map(([lang, count]: any, index) => {
-                        const percentage = ((count / total) * 100).toFixed(0);
-                        return (
-                          <div key={lang}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-sm font-medium text-gray-900">{languageNames[lang] || lang}</span>
-                              <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-pink-600">{count}</span>
-                                <span className="text-xs text-gray-500">({percentage}%)</span>
-                              </div>
-                            </div>
-                            <div className="w-full bg-white rounded-full h-3 shadow-inner">
-                              <div 
-                                className={`${barColors[index % barColors.length]} h-3 rounded-full transition-all duration-500 flex items-center justify-end pr-2`}
-                                style={{ width: `${percentage}%` }}
-                              >
-                                {parseInt(percentage) > 15 && (
-                                  <span className="text-xs font-bold text-white">{percentage}%</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      });
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Super Admin: Tunisia Map */}
-      {isSuperAdmin && !loading && autoEcoles.length > 0 && (
-        <TunisiaMap autoEcoles={autoEcoles} />
-      )}
-
-      {/* Super Admin: Users Table with Phone Numbers */}
-      {isSuperAdmin && !loading && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-linear-to-r from-blue-500 to-purple-500 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                  <Users className="w-7 h-7" />
-                  Utilisateurs et Numéros de Téléphone
-                </h2>
-                <p className="text-white/90 text-sm mt-1">
-                  {(() => {
-                    const filteredSurveys = onboardingSurveys.filter(survey => {
-                      if (roleFilter === "all") return true;
-                      if (roleFilter === "candidat") return survey.role === "candidat";
-                      if (roleFilter === "autoecole") return survey.role === "moniteur" || survey.role === "autoecole" || survey.role === "auto-ecole";
-                      return true;
-                    });
-                    return filteredSurveys.length;
-                  })()} utilisateurs affichés
-                </p>
-              </div>
-              
-              {/* Filter Dropdown */}
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-4 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm font-medium"
-              >
-                <option value="all">Tous</option>
-                <option value="candidat">Candidat</option>
-                <option value="autoecole">Auto-école</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Téléphone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rôle
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {/* Onboarding Surveys */}
-                {(() => {
-                  const filteredSurveys = onboardingSurveys.filter(survey => {
-                    if (roleFilter === "all") return true;
-                    if (roleFilter === "candidat") return survey.role === "candidat";
-                    if (roleFilter === "autoecole") return survey.role === "moniteur" || survey.role === "autoecole" || survey.role === "auto-ecole";
-                    return true;
-                  });
-
-                  if (filteredSurveys.length === 0) {
-                    return (
-                      <tr>
-                        <td colSpan={2} className="px-6 py-12 text-center text-gray-500">
-                          Aucun utilisateur trouvé
-                        </td>
-                      </tr>
-                    );
-                  }
-
-                  return filteredSurveys.map((survey) => (
-                    <tr key={`survey-${survey.id}`} className="hover:bg-purple-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">
-                          {survey.phone || survey.telephone || "Non renseigné"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                          <FileText className="w-3 h-3" />
-                          {survey.role === "candidat" ? "Candidat" : 
-                           survey.role === "moniteur" || survey.role === "autoecole" || survey.role === "auto-ecole" ? "Auto-école/Moniteur" : 
-                           survey.role || "N/A"}
-                        </span>
-                      </td>
-                    </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Summary Footer */}
-          <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-            <div className="flex items-center justify-end text-sm">
-              <span className="text-gray-500">
-                Total: <span className="font-semibold text-gray-900">
-                  {(() => {
-                    const filteredSurveys = onboardingSurveys.filter(survey => {
-                      if (roleFilter === "all") return true;
-                      if (roleFilter === "candidat") return survey.role === "candidat";
-                      if (roleFilter === "autoecole") return survey.role === "moniteur" || survey.role === "autoecole" || survey.role === "auto-ecole";
-                      return true;
-                    });
-                    return filteredSurveys.length;
-                  })()}
-                </span> utilisateurs
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Super Admin: Auto-écoles List */}
+      {/* Map */}
+      {isSuperAdmin && !loading && autoEcoles.length > 0 && <TunisiaMap autoEcoles={autoEcoles} />}
 
       {/* Status Selection Modal */}
       {showStatusModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
-              Changer le Statut
-            </h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeModals}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Changer le statut</h3>
             <p className="text-sm text-gray-600 mb-6">
-              Auto-école: <span className="font-semibold">{selectedAutoEcole.name}</span>
+              Auto-école : <span className="font-semibold">{selectedAutoEcole.name}</span>
             </p>
-            
+
             <div className="space-y-3">
-              <button
-                onClick={() => updateStatus("active")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-green-200 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-6 h-6 text-green-600" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">Actif</p>
-                    <p className="text-xs text-gray-500">L'auto-école peut utiliser la plateforme</p>
+              {([
+                ["active", "Activer", "L'auto-école peut utiliser la plateforme", CheckCircle2, "border-green-200 hover:bg-green-50", "text-green-600"],
+                ["inactive", "Désactiver", "L'auto-école n'a plus accès à la plateforme", XCircle, "border-red-200 hover:bg-red-50", "text-red-600"],
+                ["pending", "Laisser en attente", "En attente d'approbation", Power, "border-amber-200 hover:bg-amber-50", "text-amber-600"],
+              ] as const).map(([value, label, description, Icon, buttonClass, iconClass]) => (
+                <button
+                  key={value}
+                  onClick={() => updateStatus(value)}
+                  disabled={actionLoading === selectedAutoEcole.id}
+                  className={`w-full flex items-center justify-between p-4 border-2 rounded-xl transition-colors disabled:opacity-50 ${buttonClass}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-6 h-6 ${iconClass}`} />
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">{label}</p>
+                      <p className="text-xs text-gray-500">{description}</p>
+                    </div>
                   </div>
-                </div>
-                {selectedAutoEcole.status === "active" && (
-                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => updateStatus("inactive")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <XCircle className="w-6 h-6 text-red-600" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">Inactif</p>
-                    <p className="text-xs text-gray-500">L'auto-école est désactivée</p>
-                  </div>
-                </div>
-                {selectedAutoEcole.status === "inactive" && (
-                  <CheckCircle2 className="w-5 h-5 text-red-600" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => updateStatus("pending")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-yellow-200 rounded-lg hover:bg-yellow-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <Power className="w-6 h-6 text-yellow-600" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">En attente</p>
-                    <p className="text-xs text-gray-500">En attente d'approbation</p>
-                  </div>
-                </div>
-                {selectedAutoEcole.status === "pending" && (
-                  <CheckCircle2 className="w-5 h-5 text-yellow-600" />
-                )}
-              </button>
+                  {selectedAutoEcole.status === value && <CheckCircle2 className={`w-5 h-5 ${iconClass}`} />}
+                </button>
+              ))}
             </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowStatusModal(false);
-                  setSelectedAutoEcole(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Annuler
-              </button>
-            </div>
+
+            <button
+              onClick={closeModals}
+              className="w-full mt-6 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </div>
       )}
 
       {/* Pack Selection Modal */}
       {showPackModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">
-              Sélectionner un Pack
-            </h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeModals}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Sélectionner un pack</h3>
             <p className="text-sm text-gray-600 mb-6">
-              Auto-école: <span className="font-semibold">{selectedAutoEcole.name}</span>
+              Auto-école : <span className="font-semibold">{selectedAutoEcole.name}</span>
             </p>
-            
+
             <div className="space-y-3">
-              <button
-                onClick={() => updatePack("gold")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-yellow-200 rounded-lg hover:bg-yellow-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <Crown className="w-6 h-6 text-yellow-500" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Gold</p>
-                    <p className="text-xs text-gray-500">Premium - Toutes les fonctionnalités</p>
+              {([
+                ["gold", "Pack Gold", "Premium - Toutes les fonctionnalités", "border-yellow-200 hover:bg-yellow-50"],
+                ["silver", "Pack Silver", "Avancé - Fonctionnalités principales", "border-gray-200 hover:bg-gray-50"],
+                ["bronze", "Pack Bronze", "Essentiel - Fonctionnalités de base", "border-orange-200 hover:bg-orange-50"],
+              ] as const).map(([value, label, description, buttonClass]) => (
+                <button
+                  key={value}
+                  onClick={() => updatePack(value)}
+                  disabled={actionLoading === selectedAutoEcole.id}
+                  className={`w-full flex items-center justify-between p-4 border-2 rounded-xl transition-colors disabled:opacity-50 ${buttonClass}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {getPackIcon(value)}
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-900">{label}</p>
+                      <p className="text-xs text-gray-500">{description}</p>
+                    </div>
                   </div>
-                </div>
-                {selectedAutoEcole.pack === "gold" && (
-                  <CheckCircle2 className="w-5 h-5 text-yellow-500" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => updatePack("silver")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <Star className="w-6 h-6 text-gray-400" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Silver</p>
-                    <p className="text-xs text-gray-500">Avancé - Fonctionnalités principales</p>
-                  </div>
-                </div>
-                {selectedAutoEcole.pack === "silver" && (
-                  <CheckCircle2 className="w-5 h-5 text-gray-400" />
-                )}
-              </button>
-              
-              <button
-                onClick={() => updatePack("bronze")}
-                disabled={actionLoading === selectedAutoEcole.id}
-                className="w-full flex items-center justify-between p-4 border-2 border-orange-200 rounded-lg hover:bg-orange-50 transition-colors disabled:opacity-50"
-              >
-                <div className="flex items-center gap-3">
-                  <Circle className="w-6 h-6 text-orange-600" />
-                  <div className="text-left">
-                    <p className="font-semibold text-gray-900">Pack Bronze</p>
-                    <p className="text-xs text-gray-500">Essentiel - Fonctionnalités de base</p>
-                  </div>
-                </div>
-                {selectedAutoEcole.pack === "bronze" && (
-                  <CheckCircle2 className="w-5 h-5 text-orange-600" />
-                )}
-              </button>
+                  {selectedAutoEcole.pack === value && <CheckCircle2 className="w-5 h-5 text-green-600" />}
+                </button>
+              ))}
             </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowPackModal(false);
-                  setSelectedAutoEcole(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Annuler
-              </button>
-            </div>
+
+            <button
+              onClick={closeModals}
+              className="w-full mt-6 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Annuler
+            </button>
           </div>
         </div>
       )}
 
       {/* Details Modal */}
       {showDetailsModal && selectedAutoEcole && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeModals}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-bold text-gray-900">
-                Détails de l'Auto-école
-              </h3>
-              <button
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedAutoEcole(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
+              <h3 className="text-lg font-bold text-gray-900">Détails de l&apos;auto-école</h3>
+              <button onClick={closeModals} className="text-gray-400 hover:text-gray-600" aria-label="Fermer">
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="flex items-center gap-4">
                 {selectedAutoEcole.logo ? (
@@ -1093,24 +536,19 @@ export default function DashboardPage() {
                   <p className="text-sm text-gray-500">{selectedAutoEcole.registrationNumber || "N/A"}</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-                <div>
-                  <p className="text-xs text-gray-500">Email</p>
-                  <p className="text-sm font-medium text-gray-900">{selectedAutoEcole.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Téléphone</p>
-                  <p className="text-sm font-medium text-gray-900">{selectedAutoEcole.phone || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Ville</p>
-                  <p className="text-sm font-medium text-gray-900">{selectedAutoEcole.city || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Adresse</p>
-                  <p className="text-sm font-medium text-gray-900">{selectedAutoEcole.address || "N/A"}</p>
-                </div>
+                {[
+                  ["Email", selectedAutoEcole.email],
+                  ["Téléphone", selectedAutoEcole.phone],
+                  ["Ville", selectedAutoEcole.city],
+                  ["Adresse", selectedAutoEcole.address],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-xs text-gray-500">{label}</p>
+                    <p className="text-sm font-medium text-gray-900 break-words">{value || "N/A"}</p>
+                  </div>
+                ))}
                 <div>
                   <p className="text-xs text-gray-500">Pack</p>
                   <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getPackBadge(selectedAutoEcole.pack)}`}>
@@ -1120,53 +558,37 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Statut</p>
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${
-                    selectedAutoEcole.status === "active" 
-                      ? "bg-green-50 text-green-700 border-green-200" 
-                      : selectedAutoEcole.status === "inactive"
-                      ? "bg-red-50 text-red-700 border-red-200"
-                      : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                  }`}>
-                    {selectedAutoEcole.status === "active" ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                    {selectedAutoEcole.status?.toUpperCase() || "N/A"}
-                  </span>
+                  <StatusBadge status={selectedAutoEcole.status} />
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500">Revenu Mensuel</p>
+                  <p className="text-xs text-gray-500">Revenu mensuel</p>
                   <p className="text-sm font-medium text-gray-900">
                     {selectedAutoEcole.monthlyRevenue ? `${selectedAutoEcole.monthlyRevenue.toLocaleString()} TND` : "N/A"}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Candidats</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {candidates.filter(c => c.autoEcoleId === selectedAutoEcole.id).length}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{candidates.filter((c) => c.autoEcoleId === selectedAutoEcole.id).length}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Moniteurs</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {instructors.filter(i => i.autoEcoleId === selectedAutoEcole.id).length}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{instructors.filter((i) => i.autoEcoleId === selectedAutoEcole.id).length}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Date de création</p>
-                  <p className="text-sm font-medium text-gray-900">
-                    {selectedAutoEcole.createdAt ? new Date(selectedAutoEcole.createdAt.toDate()).toLocaleDateString('fr-FR') : "N/A"}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{formatDate(selectedAutoEcole.createdAt)}</p>
                 </div>
               </div>
             </div>
-            
-            <button
-              onClick={() => {
-                setShowDetailsModal(false);
-                setSelectedAutoEcole(null);
-              }}
-              className="w-full mt-6 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Fermer
-            </button>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => openModal(selectedAutoEcole, "status")} className="flex-1 px-4 py-2 bg-[#1E3A8A] text-white rounded-lg hover:bg-[#1E3A8A]/90 transition-colors">
+                Changer le statut
+              </button>
+              <button onClick={() => openModal(selectedAutoEcole, "pack")} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                Changer le pack
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1175,4 +597,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

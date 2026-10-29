@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, Timestamp } from "firebase/firestore";
 import { useToast } from "@/hooks/useToast";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 
 import {
   Users,
@@ -278,6 +279,8 @@ export default function CandidatesManagementPage() {
       }
     });
 
+  const candidatesPage = usePagination(filteredCandidates, [searchTerm, filterStatus, filterAutoEcole, sortBy]);
+
   const stats = {
     total: candidates.length,
     nouveau: candidates.filter(c => c.status === "Nouveau").length,
@@ -527,7 +530,7 @@ export default function CandidatesManagementPage() {
                   </td>
                 </tr>
               ) : (
-                filteredCandidates.map((candidate) => (
+                candidatesPage.pageItems.map((candidate) => (
                   <tr key={candidate.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -638,11 +641,12 @@ export default function CandidatesManagementPage() {
             </tbody>
           </table>
         </div>
+        {!loading && <Pagination {...candidatesPage} label="candidats" />}
       </div>
 
       {/* Add/Edit Modal */}
       {(showAddModal || showEditModal) && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full my-8">
             <div className="bg-linear-to-r from-blue-500 to-purple-500 text-white p-6">
               <div className="flex items-center justify-between">
@@ -901,7 +905,7 @@ export default function CandidatesManagementPage() {
 
       {/* Details Modal */}
       {showDetailsModal && selectedCandidate && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full my-8">
             <div className="bg-linear-to-r from-blue-500 to-purple-500 text-white p-6">
               <div className="flex items-center justify-between">

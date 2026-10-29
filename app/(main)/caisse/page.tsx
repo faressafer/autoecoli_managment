@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 import { 
   getTreasuryTransactions, 
   addTreasuryTransaction, 
@@ -115,6 +116,8 @@ export default function CaissePage() {
 
     return matchSearch && matchType && matchDate;
   });
+
+  const transactionsPage = usePagination(filteredTransactions, [searchTerm, filterType, filterDate]);
 
   const handleAddTransaction = async () => {
     if (!newTransaction.montant || !newTransaction.description || !newTransaction.categorie) {
@@ -353,7 +356,7 @@ export default function CaissePage() {
                   </td>
                 </tr>
               ) : (
-                filteredTransactions.map((transaction) => (
+                transactionsPage.pageItems.map((transaction) => (
                   <tr key={transaction.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
@@ -432,11 +435,12 @@ export default function CaissePage() {
             </tbody>
           </table>
         </div>
+        <Pagination {...transactionsPage} label="transactions" />
       </div>
 
       {/* Modal Ajouter Transaction */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
               <h3 className="text-xl font-bold text-black">
@@ -602,7 +606,7 @@ export default function CaissePage() {
 
       {/* Modal Détails Transaction */}
       {showDetailsModal && selectedTransaction && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
             <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
               <h3 className="text-xl font-bold">Détails de la transaction</h3>

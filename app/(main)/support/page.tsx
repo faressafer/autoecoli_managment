@@ -21,6 +21,7 @@ import {
   getSupportCountByStatus,
 } from "@/lib/firebase/services/support";
 import { SupportRequest } from "@/lib/types";
+import Pagination, { usePagination } from "@/components/ui/Pagination";
 
 export default function SupportPage() {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
@@ -139,6 +140,7 @@ export default function SupportPage() {
       request.message.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
+  const requestsPage = usePagination(filteredRequests, [searchQuery, filterStatus, filterSubject]);
 
   return (
     <div className="p-6">
@@ -264,7 +266,7 @@ export default function SupportPage() {
             </p>
           </div>
         ) : (
-          filteredRequests.map((request) => (
+          requestsPage.pageItems.map((request) => (
             <div
               key={request.id}
               className="bg-white rounded-lg border border-gray-200 shadow-sm p-4 hover:shadow-md transition-shadow"
@@ -361,10 +363,11 @@ export default function SupportPage() {
           ))
         )}
       </div>
+      {!loading && <Pagination {...requestsPage} label="demandes" className="mt-4 rounded-lg border border-gray-200" />}
 
       {/* Details Modal */}
       {showDetailsModal && selectedRequest && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex items-center justify-between rounded-t-lg">
               <h3 className="text-xl font-bold">Détails de la demande</h3>

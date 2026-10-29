@@ -185,16 +185,16 @@ export default function TunisiaMap({ autoEcoles }: TunisiaMapProps) {
   }, [autoEcoles]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+    <div className="bg-white rounded-2xl border border-gray-200 p-5">
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Carte des Auto-écoles en Tunisie</h2>
+        <h2 className="text-base font-semibold text-gray-900">Carte des auto-écoles en Tunisie</h2>
         <p className="text-sm text-gray-500 mt-1">
           Distribution géographique de {autoEcoles.length} auto-école{autoEcoles.length > 1 ? 's' : ''} à travers la Tunisie
         </p>
       </div>
       <div 
         ref={mapContainerRef} 
-        className="w-full h-[500px] rounded-lg border border-gray-300 z-0"
+        className="w-full h-[460px] rounded-xl border border-gray-200 z-0"
         style={{ position: 'relative' }}
       />
       <div className="mt-4 flex items-center gap-4 text-xs text-gray-600">

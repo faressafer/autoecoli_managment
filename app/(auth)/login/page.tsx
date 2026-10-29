@@ -197,8 +197,10 @@ export default function LoginPage() {
                 <input
                   id="email"
                   name="email"
-                  type="email"
-                  autoComplete="email"
+                  // text, not email: super admins log in with a plain username (e.g. "badii.autoecoli")
+                  type="text"
+                  inputMode="email"
+                  autoComplete="username"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
